@@ -215,6 +215,7 @@ export function Player({ visible, onBack, onQueue, onMenu, fullscreen }: { visib
   const playing = useStore((s) => s.playing);
   const buffering = useStore((s) => s.buffering);
   const error = useStore((s) => s.error);
+  const notice = useStore((s) => s.notice);
   const repeat = useStore((s) => s.repeat);
   const settings = useStore((s) => s.settings);
   const updateSettings = useStore((s) => s.updateSettings);
@@ -270,9 +271,15 @@ export function Player({ visible, onBack, onQueue, onMenu, fullscreen }: { visib
       <div className="yt-host-wrap" ref={ytHost} style={{ display: kind === 'youtube' ? undefined : 'none' }} />
       {track && !hasVideo && <Visualizer track={track} />}
       <div className="top-line">
-        <span>{track ? `${track.album} · ${track.source === 'demo' ? 'demo' : track.source}` : ''}</span>
+        <span>{track ? `${track.album} · ${(controller.playing ?? track).source === 'demo' ? 'demo' : (controller.playing ?? track).source}` : ''}</span>
         <span>{buffering ? 'Buffering…' : kind === 'spotify' ? 'Playing on Spotify Connect' : kind === 'youtube' ? 'Official video · YouTube player' : hasVideo ? 'Video' : 'Audio'}</span>
       </div>
+      {notice && !error && (
+        <div className="player-notice ui-text" role="status">
+          {notice.text}
+          {notice.url && <button onClick={() => void bridge.openExternal(notice.url!)}>{notice.link ?? 'Open'}</button>}
+        </div>
+      )}
       {visible && track && <LyricsView lyrics={lyrics} state={state} time={clock.time} offset={offset} />}
       {error && (
         <div className="player-error" role="alert">

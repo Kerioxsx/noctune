@@ -93,10 +93,6 @@
 </style>
 </head>
 <body>
-<!-- type: software
-     deal: hero centred, nav mega, close word, footer dark, rhythm space, buttons arrow, mark stack, grounds none
-     palette: the product's own (start.mjs brand): halftone ink #0b0d09, paper cream #ece6cf, olive accent #c9d66a
-     moments: line-carries-colour on #sources (the one section on the inverse, paper-coloured ground) -->
 
 <header class="nav">
   <div class="wrap nav__bar">
@@ -218,16 +214,16 @@
     <div class="wrap">
       <div class="section-head">
         <h2 id="sources-h">Your files and three music services</h2>
-        <p>Everything sits in one library, and each source does only what its owner allows.</p>
+        <p>Everything sits in one library. When one source can’t play a song, Noctune plays another copy of it and tells you which.</p>
       </div>
       <table class="sources">
-        <thead><tr><th scope="col">Source</th><th scope="col">Works</th><th scope="col">Does not</th></tr></thead>
+        <thead><tr><th scope="col">Source</th><th scope="col">Plays</th><th scope="col">If it can’t play</th></tr></thead>
         <tbody>
-          <tr><td><span class="src-name"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 4h10l6 6v10H4z"/><path d="M14 4v6h6"/></svg>Local files</span></td><td>MP3, FLAC, WAV, AAC, OGG and MP4 video, with embedded art and sidecar lyrics</td><td>Change your files</td></tr>
-          <tr><td><span class="src-name"><img class="ic ic-28" src="assets/icons/brand/spotify.svg" alt="" width="28" height="28">Spotify</span></td><td>Your saved albums and playlists with real covers; play, seek and volume through Spotify Connect</td><td>Play audio inside Noctune or run it through the equalizer</td></tr>
-          <tr><td><span class="src-name"><img class="ic ic-28" src="assets/icons/brand/soundcloud.svg" alt="" width="62" height="28">SoundCloud</span></td><td>Your likes and playlists; tracks the creator allows apps to stream</td><td>Preview-only or blocked tracks</td></tr>
-          <tr><td><span class="src-name"><img class="ic ic-28" src="assets/icons/brand/applemusic.svg" alt="" width="28" height="28">Apple Music</span></td><td>Checks a MusicKit developer token and reads catalog details</td><td>Play subscription tracks in this version</td></tr>
-          <tr><td><span class="src-name"><img class="ic ic-28" src="assets/icons/brand/youtube.svg" alt="" width="38" height="28">YouTube</span></td><td>An official video you link to a track, in YouTube's own player</td><td>Videos whose owners block embedding</td></tr>
+          <tr><td><span class="src-name"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 4h10l6 6v10H4z"/><path d="M14 4v6h6"/></svg>Local files</span></td><td>MP3, FLAC, WAV, AAC, OGG and MP4 video, with embedded art and sidecar lyrics; your files are never changed</td><td>A moved or damaged file is replaced by the same song from a connected service</td></tr>
+          <tr><td><span class="src-name"><img class="ic ic-28" src="assets/icons/brand/spotify.svg" alt="" width="28" height="28">Spotify</span></td><td>Your saved albums and playlists with real covers, inside Noctune where the system supports it, otherwise on your Spotify app</td><td>Opens the Spotify app for you when no device is running, or plays your own copy of the song</td></tr>
+          <tr><td><span class="src-name"><img class="ic ic-28" src="assets/icons/brand/soundcloud.svg" alt="" width="62" height="28">SoundCloud</span></td><td>Your likes and playlists, through the equalizer</td><td>Preview-only and app-blocked tracks play from your files or Spotify instead</td></tr>
+          <tr><td><span class="src-name"><img class="ic ic-28" src="assets/icons/brand/applemusic.svg" alt="" width="28" height="28">Apple Music</span></td><td>Reads the Apple Music catalog with a MusicKit token</td><td>Songs play from your files, Spotify or SoundCloud</td></tr>
+          <tr><td><span class="src-name"><img class="ic ic-28" src="assets/icons/brand/youtube.svg" alt="" width="38" height="28">YouTube</span></td><td>An official video you link to a track, in YouTube's own player</td><td>The song keeps playing with the visualizer, with a link to watch on YouTube</td></tr>
         </tbody>
       </table>
     </div>

@@ -144,6 +144,8 @@ interface State {
   playing: boolean;
   buffering: boolean;
   error: string | null;
+  /** a fallback that kept the music going, shown in the player */
+  notice: { text: string; url?: string; link?: string } | null;
   repeat: RepeatMode;
 
   set: (p: Partial<State>) => void;
@@ -177,6 +179,7 @@ export const useStore = create<State>((set, get) => ({
   playing: false,
   buffering: false,
   error: null,
+  notice: null,
   repeat: 'off',
   set: (p) => set(p),
   updateSettings: (fn) => {
