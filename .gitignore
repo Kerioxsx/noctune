@@ -1,0 +1,9 @@
+node_modules/
+app/dist/
+app/dist-electron/
+app/release/
+website/dist/
+.taste-skill/chrome-*
+*.log
+.DS_Store
+.claude/settings.local.json
