@@ -19,7 +19,7 @@ for (const f of ['index.html', 'privacy.html', 'favicon.png', 'share.jpg', 'app-
 for (const d of ['fonts', 'shots']) cpSync(join(here, d), join(out, d), { recursive: true });
 
 // Only the kit folders the page references (no photo library, scenes or objects).
-const kitDirs = ['system.css', 'system.js', 'ui', 'motion', 'backgrounds', 'layout', 'moments', 'icons/icon.css', 'icons/brand', 'diagrams', 'effects', 'components'];
+const kitDirs = ['system.css', 'system.js', 'ui', 'motion', 'backgrounds', 'layout', 'moments/moments.js', 'moments/lib.js', 'moments/index.json', 'moments/line-carries-colour', 'icons/icon.css', 'icons/brand'];
 for (const d of kitDirs) {
   const src = join(here, 'assets', d);
   if (existsSync(src)) cpSync(src, join(out, 'assets', d), { recursive: true, filter: (p) => !/\/(_demo|img)\b/.test(p) && !/\.(md|html|mjs)$/.test(p) });

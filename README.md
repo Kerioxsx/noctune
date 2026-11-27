@@ -85,4 +85,4 @@ The six demo albums (music, one music video, timed lyrics and cover art) are gen
 npm run build -w website
 ```
 
-Outputs a static site in `website/dist/`, including the app's web build at `/app/` as the live demo in the hero.
+Outputs a static site in `website/dist/`, including the app's web build at `/app/` as the live demo in the hero. Pushes to `main` deploy it to GitHub Pages once Pages is switched on (Settings → Pages → Source: GitHub Actions); it will be at https://kerioxsx.github.io/noctune/.
