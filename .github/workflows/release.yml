@@ -53,19 +53,58 @@ jobs:
           for v in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
             if [ -z "${!v}" ]; then unset "$v"; fi
           done
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then PUBLISH=always; else PUBLISH=never; fi
-          npx electron-builder ${{ matrix.target }} --publish $PUBLISH
+          npx electron-builder ${{ matrix.target }} --publish never
       - uses: actions/upload-artifact@v4
         with:
           name: noctune-${{ runner.os }}
           path: |
-            app/release/*.dmg
-            app/release/*.zip
-            app/release/*.exe
-            app/release/*.AppImage
-            app/release/*.deb
-            app/release/*.tar.gz
+            app/release/Noctune-*.dmg
+            app/release/Noctune-*.zip
+            app/release/Noctune-*.exe
+            app/release/Noctune-*.AppImage
+            app/release/Noctune-*.deb
+            app/release/Noctune-*.tar.gz
           if-no-files-found: error
+
+  # Publishes the installers as the latest GitHub Release, so the website's download
+  # buttons (releases/latest/download/<name>) always fetch the newest build.
+  release:
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: noctune-*
+          path: installers
+          merge-multiple: true
+      - id: version
+        run: echo "v=$(node -p "require('./app/package.json').version")" >> "$GITHUB_OUTPUT"
+      - run: ls -la installers
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.v }}
+          name: Noctune ${{ steps.version.outputs.v }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          fail_on_unmatched_files: true
+          files: |
+            installers/Noctune-*.dmg
+            installers/Noctune-*.zip
+            installers/Noctune-*.exe
+            installers/Noctune-*.AppImage
+            installers/Noctune-*.deb
+            installers/Noctune-*.tar.gz
+          body: |
+            Download the installer for your system:
+
+            - macOS (Apple silicon): Noctune-mac-arm64.dmg
+            - macOS (Intel): Noctune-mac-x64.dmg
+            - Windows: Noctune-Setup.exe, or Noctune-Portable.exe with no install
+            - Linux: Noctune-linux.AppImage, Noctune-linux.deb or Noctune-linux.tar.gz
+
+            macOS builds are not signed yet: the first time, right-click Noctune and choose Open.
 
   website:
     runs-on: ubuntu-latest

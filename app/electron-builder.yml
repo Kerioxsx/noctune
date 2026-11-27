@@ -21,6 +21,8 @@ mac:
     - target: zip
       arch: [x64, arm64]
   icon: build/icon.png
+  # Fixed names (no version), so the website can link to releases/latest/download/<name>.
+  artifactName: Noctune-mac-${arch}.${ext}
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
@@ -31,17 +33,28 @@ win:
   target: [nsis, portable]
   icon: build/icon.png
 nsis:
+  artifactName: Noctune-Setup.${ext}
   oneClick: false
   allowToChangeInstallationDirectory: true
   perMachine: false
+portable:
+  artifactName: Noctune-Portable.${ext}
 linux:
   target: [AppImage, deb, tar.gz]
   category: AudioVideo;Audio;Player
   icon: build/icon.png
   maintainer: Noctune
   synopsis: Retro console music player
+  # x64 only, so no arch in the name: Noctune-linux.AppImage / .deb / .tar.gz
+  artifactName: Noctune-linux.${ext}
+appImage:
+  artifactName: Noctune-linux.${ext}
+deb:
+  artifactName: Noctune-linux.${ext}
+dmg:
+  artifactName: Noctune-mac-${arch}.${ext}
 publish:
   provider: github
   owner: kerioxsx
   repo: noctune
-  releaseType: draft
+  releaseType: release
