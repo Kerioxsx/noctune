@@ -7,3 +7,5 @@ website/dist/
 *.log
 .DS_Store
 .claude/settings.local.json
+# The taste-skill kit is copied in from .agents/skills/design-taste-frontend/assets (see website/README.md)
+website/assets/
