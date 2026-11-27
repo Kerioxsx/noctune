@@ -1,0 +1,91 @@
+name: Build desktop apps
+
+# Builds Noctune for macOS, Windows and Linux on every push to main and on pull requests.
+# Pushing a tag like v0.1.0 also attaches the installers to a draft GitHub release.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: --mac
+          - os: windows-latest
+            target: --win
+          - os: ubuntu-latest
+            target: --linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck and bundle
+        run: npm run build -w app
+      - name: Package
+        working-directory: app
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS signing/notarization runs only when these secrets are configured.
+          CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.MAC_CERT_P12_BASE64 != '' }}
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then PUBLISH=always; else PUBLISH=never; fi
+          npx electron-builder ${{ matrix.target }} --publish $PUBLISH
+      - uses: actions/upload-artifact@v4
+        with:
+          name: noctune-${{ runner.os }}
+          path: |
+            app/release/*.dmg
+            app/release/*.zip
+            app/release/*.exe
+            app/release/*.AppImage
+            app/release/*.deb
+            app/release/*.tar.gz
+          if-no-files-found: error
+
+  website:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w website
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: website/dist
+
+  # Publishes the site to GitHub Pages on pushes to main.
+  # One-time setup: repository Settings -> Pages -> Source: GitHub Actions.
+  deploy-website:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: website
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

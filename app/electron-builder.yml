@@ -1,0 +1,47 @@
+appId: app.noctune.player
+electronVersion: 33.2.1
+# Renderer and main are fully bundled, so no node_modules ship in the app.
+npmRebuild: false
+productName: Noctune
+copyright: Copyright © 2026 Noctune
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**
+  - dist-electron/**
+  - package.json
+asarUnpack:
+  - dist/demo/**
+mac:
+  category: public.app-category.music
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]
+  icon: build/icon.png
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # Notarization runs when APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID are set in CI.
+  notarize: false
+win:
+  target: [nsis, portable]
+  icon: build/icon.png
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+linux:
+  target: [AppImage, deb, tar.gz]
+  category: AudioVideo;Audio;Player
+  icon: build/icon.png
+  maintainer: Noctune
+  synopsis: Retro console music player
+publish:
+  provider: github
+  owner: kerioxsx
+  repo: noctune
+  releaseType: draft

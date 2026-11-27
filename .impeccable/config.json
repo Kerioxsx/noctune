@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "instrument serif",
+        "createdAt": "2026-11-27T18:36:31.670Z",
+        "reason": "assistant decision: the reference video's PLAY? prompt and lyric captions are a condensed display serif; Instrument Serif matches that lettering"
+      }
+    ]
+  }
+}

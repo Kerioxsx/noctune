@@ -1,0 +1,15 @@
+node_modules/
+app/dist/
+app/dist-electron/
+app/release/
+website/dist/
+.taste-skill/chrome-*
+*.log
+.DS_Store
+.claude/settings.local.json
+# The taste-skill kit is copied in from .agents/skills/design-taste-frontend/assets (see website/README.md)
+website/assets/
+# taste-skill gate run output
+website/.taste-skill/gate/
+website/.taste-skill/*.done.json
+website/.taste-skill/gate.json

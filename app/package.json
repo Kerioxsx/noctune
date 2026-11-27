@@ -1,0 +1,41 @@
+{
+  "name": "noctune",
+  "productName": "Noctune",
+  "version": "0.1.0",
+  "description": "A retro console-style music player with stacked album cards, a spinning disc, synced lyrics and music videos.",
+  "author": "Noctune",
+  "license": "MIT",
+  "main": "dist-electron/main.cjs",
+  "scripts": {
+    "gen:demo": "node scripts/gen-demo.mjs",
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "vite",
+    "build:main": "node scripts/build-main.mjs",
+    "build": "tsc --noEmit && vite build && node scripts/build-main.mjs",
+    "start": "electron .",
+    "dist": "npm run build && electron-builder",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:win": "npm run build && electron-builder --win"
+  },
+  "devDependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^4.5.5",
+    "@types/node": "^22.9.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.24.0",
+    "music-metadata": "^10.6.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kerioxsx/noctune.git"
+  },
+  "homepage": "https://github.com/kerioxsx/noctune"
+}

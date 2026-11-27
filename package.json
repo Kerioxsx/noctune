@@ -1,0 +1,11 @@
+{
+  "name": "noctune-monorepo",
+  "private": true,
+  "workspaces": ["app", "website"],
+  "scripts": {
+    "dev": "npm run dev -w app",
+    "build": "npm run build -w app && npm run build -w website",
+    "dist": "npm run dist -w app",
+    "site": "npm run dev -w website"
+  }
+}

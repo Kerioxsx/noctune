@@ -1,0 +1,158 @@
+[
+  {
+    "id": "ember-dragon",
+    "title": "Ember Dragon",
+    "artist": "Kowloon Static",
+    "year": 1998,
+    "tracks": [
+      {
+        "id": "ember-dragon-1",
+        "title": "Neon Seraph",
+        "number": 1,
+        "duration": 47.15,
+        "audio": "ember-dragon-1.ogg",
+        "lyrics": "ember-dragon-1.lrc",
+        "video": "ember-dragon-1.mp4"
+      },
+      {
+        "id": "ember-dragon-2",
+        "title": "Paper Lanterns",
+        "number": 2,
+        "duration": 44.24,
+        "audio": "ember-dragon-2.ogg",
+        "lyrics": "ember-dragon-2.lrc",
+        "video": null
+      }
+    ]
+  },
+  {
+    "id": "red-line",
+    "title": "Red Line",
+    "artist": "Overpass",
+    "year": 2001,
+    "tracks": [
+      {
+        "id": "red-line-1",
+        "title": "Diagonal",
+        "number": 1,
+        "duration": 40.9,
+        "audio": "red-line-1.ogg",
+        "lyrics": "red-line-1.lrc",
+        "video": null
+      },
+      {
+        "id": "red-line-2",
+        "title": "Last Platform",
+        "number": 2,
+        "duration": 51.73,
+        "audio": "red-line-2.ogg",
+        "lyrics": "red-line-2.lrc",
+        "video": null
+      }
+    ]
+  },
+  {
+    "id": "slow-burn",
+    "title": "Slow Burn",
+    "artist": "Moss Diner",
+    "year": 2004,
+    "tracks": [
+      {
+        "id": "slow-burn-1",
+        "title": "Cereal at Midnight",
+        "number": 1,
+        "duration": 45.17,
+        "audio": "slow-burn-1.ogg",
+        "lyrics": "slow-burn-1.lrc",
+        "video": null
+      },
+      {
+        "id": "slow-burn-2",
+        "title": "Green Mask",
+        "number": 2,
+        "duration": 43.35,
+        "audio": "slow-burn-2.ogg",
+        "lyrics": "slow-burn-2.lrc",
+        "video": null
+      }
+    ]
+  },
+  {
+    "id": "blue-hour",
+    "title": "Blue Hour",
+    "artist": "Sora Tapes",
+    "year": 1996,
+    "tracks": [
+      {
+        "id": "blue-hour-1",
+        "title": "Skyway",
+        "number": 1,
+        "duration": 49.33,
+        "audio": "blue-hour-1.ogg",
+        "lyrics": "blue-hour-1.lrc",
+        "video": null
+      },
+      {
+        "id": "blue-hour-2",
+        "title": "Glass Towers",
+        "number": 2,
+        "duration": 46.14,
+        "audio": "blue-hour-2.ogg",
+        "lyrics": "blue-hour-2.lrc",
+        "video": null
+      }
+    ]
+  },
+  {
+    "id": "rust-static",
+    "title": "Rust Static",
+    "artist": "Halftone Club",
+    "year": 1999,
+    "tracks": [
+      {
+        "id": "rust-static-1",
+        "title": "Dot Screen",
+        "number": 1,
+        "duration": 39.42,
+        "audio": "rust-static-1.ogg",
+        "lyrics": "rust-static-1.lrc",
+        "video": null
+      },
+      {
+        "id": "rust-static-2",
+        "title": "Copy of a Copy",
+        "number": 2,
+        "duration": 42.5,
+        "audio": "rust-static-2.ogg",
+        "lyrics": "rust-static-2.lrc",
+        "video": null
+      }
+    ]
+  },
+  {
+    "id": "cream-signal",
+    "title": "Cream Signal",
+    "artist": "Low Battery",
+    "year": 2003,
+    "tracks": [
+      {
+        "id": "cream-signal-1",
+        "title": "Five Twenty-Four",
+        "number": 1,
+        "duration": 48.21,
+        "audio": "cream-signal-1.ogg",
+        "lyrics": "cream-signal-1.lrc",
+        "video": null
+      },
+      {
+        "id": "cream-signal-2",
+        "title": "Save Point",
+        "number": 2,
+        "duration": 53.03,
+        "audio": "cream-signal-2.ogg",
+        "lyrics": "cream-signal-2.lrc",
+        "video": null
+      }
+    ]
+  }
+]
