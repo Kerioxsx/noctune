@@ -1,11 +1,5 @@
 # Noctune website
 
-Work in progress. The page is built on the design-taste-frontend skill kit, which is copied in rather than committed:
+Static marketing site. `npm run build -w website` writes `dist/` with the page, fonts, screenshots, the parts of the design-taste-frontend kit it loads (copied from `.agents/skills/design-taste-frontend/assets`, not committed), and the app's web build at `app/` as the live demo.
 
-```bash
-cp -r ../.agents/skills/design-taste-frontend/assets ./assets
-```
-
-- `shots/` — product screenshots captured from the app at 2×
-- `fonts/` — self-hosted IBM Plex Sans/Mono and Instrument Serif
-- `.taste-skill/` — the kit's deal history (hero, moment)
+`.taste-skill/` keeps the kit's deal history and one gate waiver.

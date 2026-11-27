@@ -398,7 +398,7 @@ export function App() {
         data-tone-hud={tones.hud}
         data-tone-prompt={screen === 'launch' ? 'dark' : tones.prompt}
         data-tone-mini={tones.mini}
-        style={{ transform: `scale(${scale})`, ['--scan' as string]: fxOn && settings.effects.vhs ? settings.effects.scanlineStrength : 0, ['--anim' as string]: anim, ['--fx' as string]: fxOn ? settings.effects.intensity : 0, ['--text-scale' as string]: settings.textScale }}
+        style={{ transform: `translate(-50%, -50%) scale(${scale})`, ['--scan' as string]: fxOn && settings.effects.vhs ? settings.effects.scanlineStrength : 0, ['--anim' as string]: anim, ['--fx' as string]: fxOn ? settings.effects.intensity : 0, ['--text-scale' as string]: settings.textScale }}
       >
         <div className="stage-content">
           <Background night={screen === 'launch'} dim={settingsOpen} halftoneOn={settings.effects.halftone} bg={settings.background} onTones={setTones} />

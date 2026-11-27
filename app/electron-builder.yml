@@ -15,7 +15,11 @@ asarUnpack:
   - dist/demo/**
 mac:
   category: public.app-category.music
-  target: [dmg, zip]
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]
   icon: build/icon.png
   hardenedRuntime: true
   gatekeeperAssess: false

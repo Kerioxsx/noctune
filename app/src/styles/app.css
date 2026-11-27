@@ -43,9 +43,9 @@ img { display: block; }
 :focus-visible, .focus-always :focus { outline: 1.5px solid var(--focus); outline-offset: 3px; }
 
 /* ------------------------------------------------------------ stage */
-.viewport { position: fixed; inset: 0; display: grid; place-items: center; background: #000; }
+.viewport { position: fixed; inset: 0; overflow: hidden; background: #000; }
 .stage {
-  position: relative; width: 1280px; height: 720px; overflow: clip; background: var(--ink);
+  position: absolute; left: 50%; top: 50%; width: 1280px; height: 720px; overflow: clip; background: var(--ink);
   transform-origin: center center; contain: strict;
   font-size: calc(13px * var(--text-scale));
 }
