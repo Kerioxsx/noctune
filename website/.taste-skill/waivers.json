@@ -1,3 +1,0 @@
-[
-  { "check": "one-section", "target": "section.hero.hero--centred > div.wrap > div.hero-text > div.hero__window.app-window", "reason": "The hero window holds the live Noctune app in an iframe, the product's real UI; the checker cannot see inside the iframe and reads only the key-hint label." }
-]

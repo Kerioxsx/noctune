@@ -271,21 +271,21 @@ export async function status(): Promise<ProviderStatus[]> {
     {
       id: 'spotify', name: 'Spotify', connected: !!sp, configured: !!c.spotify?.clientId, secureStorage: secure,
       needs: c.spotify?.clientId ? [] : ['clientId'],
-      capabilities: ['Import saved albums and playlists with real cover art', 'Control playback on a Spotify device (Premium)', 'Seek, volume and repeat through Spotify Connect'],
-      limitations: ['Audio plays in the Spotify app, not inside Noctune; the equalizer cannot process it', 'Requires Spotify Premium for playback control', 'No offline playback through Noctune'],
+      capabilities: ['Import saved albums and playlists with real cover art', 'Plays inside Noctune when this system supports Widevine, otherwise on your Spotify app', 'Opens the Spotify app by itself when no device is running', 'Seek, volume and repeat'],
+      limitations: ['Needs Spotify Premium for playback', 'Spotify audio is protected, so the equalizer cannot process it', 'A song Spotify cannot play falls back to your own copy or SoundCloud'],
       redirectUri: REDIRECT_URI,
     },
     {
       id: 'apple', name: 'Apple Music', connected: !!apple, configured: !!apple, secureStorage: secure,
       needs: apple ? [] : ['developerToken'],
       capabilities: ['Validate a MusicKit developer token', 'Catalog metadata through the Apple Music API'],
-      limitations: ['Protected subscription playback needs MusicKit with DRM support, which this build does not include', 'Personal library access needs a Music User Token from MusicKit sign-in'],
+      limitations: ['Apple Music audio is protected; songs play from your files, Spotify or SoundCloud instead', 'Personal library access needs a Music User Token from MusicKit sign-in'],
     },
     {
       id: 'soundcloud', name: 'SoundCloud', connected: !!sc, configured: !!c.soundcloud?.clientId, secureStorage: secure,
       needs: c.soundcloud?.clientId ? [] : ['clientId', 'clientSecret'],
-      capabilities: ['Import your likes and playlists', 'Play tracks the creator allows third-party apps to stream', 'Equalizer and lyrics work on streamed tracks'],
-      limitations: ['Some tracks are preview-only or blocked for apps by the creator or region', 'Requires your own registered SoundCloud app credentials'],
+      capabilities: ['Import your likes and playlists', 'Play tracks through the equalizer, with lyrics', 'Preview-only or blocked tracks fall back to your files or Spotify'],
+      limitations: ['Requires your own registered SoundCloud app credentials'],
       redirectUri: REDIRECT_URI,
     },
   ];
@@ -338,7 +338,11 @@ export async function playlistTracks(id: string): Promise<LibraryTrack[]> {
 }
 
 /** Spotify Connect remote control. */
-export async function remote(cmd: { op: 'play'; uris?: string[]; context?: string; offset?: number; positionMs?: number } | { op: 'pause' | 'resume' | 'state' } | { op: 'seek'; ms: number } | { op: 'volume'; pct: number } | { op: 'repeat'; mode: 'off' | 'context' | 'track' }): Promise<RemoteState | null> {
+export async function spotifyAccessToken(): Promise<string> {
+  return spotifyToken();
+}
+
+export async function remote(cmd: { op: 'play'; uris?: string[]; context?: string; offset?: number; positionMs?: number; deviceId?: string } | { op: 'pause' | 'resume' | 'state' | 'devices' } | { op: 'seek'; ms: number } | { op: 'volume'; pct: number } | { op: 'repeat'; mode: 'off' | 'context' | 'track' }): Promise<RemoteState | null> {
   switch (cmd.op) {
     case 'play': {
       const body: Record<string, unknown> = {};
@@ -347,8 +351,13 @@ export async function remote(cmd: { op: 'play'; uris?: string[]; context?: strin
         if (cmd.offset !== undefined) body.offset = { position: cmd.offset };
       } else if (cmd.uris) body.uris = cmd.uris;
       if (cmd.positionMs) body.position_ms = cmd.positionMs;
-      await spotify('/me/player/play', { method: 'PUT', body: JSON.stringify(body) });
+      const q = cmd.deviceId ? `?device_id=${encodeURIComponent(cmd.deviceId)}` : '';
+      await spotify(`/me/player/play${q}`, { method: 'PUT', body: JSON.stringify(body) });
       return null;
+    }
+    case 'devices': {
+      const d = await spotify<{ devices: { id: string; name: string; is_active: boolean; is_restricted: boolean }[] }>('/me/player/devices');
+      return (d?.devices ?? []).filter((x) => !x.is_restricted) as unknown as RemoteState;
     }
     case 'resume':
       await spotify('/me/player/play', { method: 'PUT' });

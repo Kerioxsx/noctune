@@ -64,10 +64,12 @@ Settings → Connections → Local files: add folders or files (MP3, FLAC, WAV, 
 
 | Service | What works | Setup |
 |---|---|---|
-| Spotify | Saved albums and playlists with covers; playback, seek, volume and repeat through Spotify Connect (Premium) | Create an app at developer.spotify.com with redirect URI `http://127.0.0.1:43821/callback`, paste its Client ID |
-| SoundCloud | Likes and playlists; playback of tracks the creator allows apps to stream, with EQ | Register a SoundCloud app with the same redirect URI, paste Client ID and secret |
-| Apple Music | Developer-token check and catalog metadata. Subscription playback needs MusicKit with DRM, which this build does not include | Paste a MusicKit developer token |
-| YouTube | An official video linked to a track plays in YouTube's own player | Track options → Link official video |
+| Spotify | Saved albums and playlists with covers; plays inside Noctune where the system supports Widevine, otherwise on your Spotify app, which Noctune opens if none is running (Premium) | Create an app at developer.spotify.com with redirect URI `http://127.0.0.1:43821/callback`, paste its Client ID |
+| SoundCloud | Likes and playlists, with EQ; preview-only or blocked tracks fall back to another copy | Register a SoundCloud app with the same redirect URI, paste Client ID and secret |
+| Apple Music | Developer-token check and catalog metadata; songs play from your files, Spotify or SoundCloud | Paste a MusicKit developer token |
+| YouTube | An official video linked to a track plays in YouTube's own player; if it can't, the song plays with the visualizer | Track options → Link official video |
+
+When a track can't play from its source (moved file, preview-only, blocked, no device), Noctune plays the same song from another source in your library and shows which one.
 
 Sign-in happens on each service's own page in your browser. Tokens are encrypted with the OS keychain (Keychain, DPAPI, libsecret/KWallet) and never reach the renderer.
 

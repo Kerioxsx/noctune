@@ -186,6 +186,7 @@ function registerIpc() {
   ipcMain.handle('providers:library', (_e, id) => providers.library(id));
   ipcMain.handle('providers:playlistTracks', (_e, id) => providers.playlistTracks(id));
   ipcMain.handle('providers:remote', (_e, cmd) => providers.remote(cmd));
+  ipcMain.handle('providers:spotifyToken', () => providers.spotifyAccessToken());
 
   // Community lyrics (LRCLIB). Only called when the user turns it on in Settings.
   ipcMain.handle('lyrics:lookup', async (_e, q: { title: string; artist: string; album?: string; duration?: number }) => {
@@ -211,7 +212,8 @@ function registerIpc() {
   });
   ipcMain.handle('window:isFullscreen', () => win?.isFullScreen() ?? false);
   ipcMain.handle('shell:openExternal', (_e, url: string) => {
-    if (/^https:\/\//.test(url)) return shell.openExternal(url);
+    // https links, and the bare spotify: scheme to open the Spotify app
+    if (/^https:\/\//.test(url) || url === 'spotify:') return shell.openExternal(url);
   });
   ipcMain.handle('app:clearCache', async () => {
     await session.defaultSession.clearCache();
