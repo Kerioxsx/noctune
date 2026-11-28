@@ -4,7 +4,8 @@ const invoke = (ch: string, ...args: unknown[]) => ipcRenderer.invoke(ch, ...arg
 
 contextBridge.exposeInMainWorld('noctune', {
   platform: process.platform,
-  version: process.env.NOCTUNE_VERSION ?? '0.1.0',
+  // passed by the main process, which knows the installed app's version
+  version: process.argv.find((a) => a.startsWith('--noctune-version='))?.split('=')[1] ?? '',
   library: {
     get: () => invoke('library:get'),
     addFolder: () => invoke('library:addFolder'),

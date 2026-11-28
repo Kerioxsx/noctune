@@ -52,6 +52,7 @@ async function createWindow() {
       nodeIntegration: false,
       sandbox: true,
       autoplayPolicy: 'no-user-gesture-required',
+      additionalArguments: [`--noctune-version=${app.getVersion()}`],
     },
   });
   if (saved.maximized) win.maximize();
