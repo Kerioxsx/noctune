@@ -34,9 +34,9 @@ Builds for the current OS into `app/release/`:
 |---|---|---|---|
 | macOS | `.dmg`, `.zip` (Apple silicon and Intel) | Drag Noctune to Applications | Move it to the Trash; settings are in `~/Library/Application Support/Noctune` |
 | Windows | NSIS installer, portable `.exe` | Run the setup | Settings → Apps → Noctune; settings are in `%APPDATA%\Noctune` |
-| Linux | AppImage, `.deb`, `.tar.gz` (x64) | `sudo apt install ./noctune_0.1.0_amd64.deb`, or make the AppImage executable and run it | `sudo apt remove noctune`, or delete the AppImage; settings are in `~/.config/Noctune` |
+| Linux | AppImage, `.deb`, `.tar.gz` (x64) | `sudo apt install ./Noctune-linux.deb`, or make the AppImage executable and run it | `sudo apt remove noctune`, or delete the AppImage; settings are in `~/.config/Noctune` |
 
-The GitHub Actions workflow in `.github/workflows/release.yml` builds all three on every push and pull request, and attaches them to a draft release when you push a `v*` tag. macOS builds are unsigned unless the signing secrets named in the workflow are set; unsigned builds open with right-click → Open the first time.
+The GitHub Actions workflow in `.github/workflows/release.yml` builds all three on every push and pull request. Every push to `main` publishes them as the latest GitHub Release (tagged with the version in `app/package.json`), which the website's download buttons link to directly. macOS builds are unsigned unless the signing secrets named in the workflow are set; unsigned builds open with right-click → Open the first time.
 
 ## Using it
 
