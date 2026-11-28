@@ -1,7 +1,7 @@
 {
   "name": "noctune",
   "productName": "Noctune",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A retro console-style music player with stacked album cards, a spinning disc, synced lyrics and music videos.",
   "author": "Noctune",
   "license": "MIT",

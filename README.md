@@ -63,7 +63,7 @@ On first launch Noctune adds your system Music folder automatically and shows wh
 
 Settings → Connections → Local files: add folders or files (MP3, FLAC, WAV, AAC/M4A, OGG/Opus, MP4/WebM). Tags and embedded artwork are read; a `.lrc` with the same name becomes the track's timed lyrics, and a video with the same name becomes its music video. Files are never modified. Untagged files named like `Artist - Title.mp3` are read from their names.
 
-For each song, Noctune finds timed lyrics on LRCLIB and the artist's official music video on YouTube (MusicBrainz as a backup), saves both, and plays the video at the highest quality the window and connection allow. Videos whose owner keeps them on YouTube only play on YouTube's own page inside Noctune, showing just the video under the lyrics. If YouTube asks for a quick robot or cookie check, it appears right there. If a video can't play at all, the song plays with the visualizer. Both lookups can be switched off in Settings.
+For each song, Noctune finds timed lyrics on LRCLIB and the artist's official music video on YouTube (MusicBrainz as a backup; audio uploads, lyric videos, visualizers and cover-picture uploads are never used), saves both, and plays the video at the highest quality the window and connection allow. Videos whose owner keeps them on YouTube only play on YouTube's own page inside Noctune, showing just the video under the lyrics. If YouTube asks for a quick robot or cookie check, it appears right there. When a video has an intro before the song, the lyrics wait for it ([ and ] fine-tune). Songs without a music video show their cover on a spinning CD with a ring of light that moves with the music. Both lookups can be switched off in Settings.
 
 ### Shuffle, For you and new releases
 
