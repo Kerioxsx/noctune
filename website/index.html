@@ -86,8 +86,11 @@
   .feature-rows { margin: 0; }
   .app-frame iframe:focus-visible { outline: 2px solid var(--action); outline-offset: -2px; }
   .close__word.serif { line-height: 1.05; padding-top: 0.06em; overflow: visible; }
-  .app-frame:has(iframe:focus-visible) { outline: 2px solid var(--action); outline-offset: 4px; }
-  @media (max-width: 379px) { .nav__actions { display: none; } }
+  .app-frame:focus-within { outline: 2px solid var(--action); outline-offset: 4px; }
+  /* tiny phones: the download button lives in the menu sheet and the hero, so the bar keeps logo + menu */
+  @media (max-width: 379px) { .nav:not(.is-open) .nav__actions { display: none; } .nav:not(.is-open) .nav__actions + .nav__toggle { margin-left: auto; } .hero .pill .muted { display: none; } }
+  .os-note { margin-top: var(--s-2); font-size: var(--t-small, 14px); color: var(--muted); text-align: center; }
+  .os-note a { color: inherit; }
   @media (max-width: 899px) { .feature-rows > div { grid-template-columns: 1fr; gap: 4px; } .sources td:nth-child(3) { display: none; } }
   @media (max-width: 639px) { #sequence .panel { --p-h: 190px; } .app-frame { height: auto; width: 100%; } .hero--centred .hero__window.app-window { padding: var(--s-3); } }
 </style>
@@ -115,7 +118,7 @@
               <a href="#player">Playlists<span>Covers, collages, export</span></a>
             </div>
             <a class="menu-card span-3 start-10" href="#sequence">
-              <div class="panel"><img class="frame__img" src="shots/disc.webp" alt="The disc sliding out from behind an album cover"></div>
+              <div class="panel"><img width="2560" height="1440" class="frame__img" src="shots/disc.webp" alt="The disc sliding out from behind an album cover"></div>
               <span class="t-card">Version 0.1</span>
               <span class="t-small muted">First public build</span>
             </a>
@@ -141,8 +144,9 @@
       <div class="hero__c">
         <a class="pill" href="#download"><span>Version 0.1 is out</span><span class="muted">macOS, Windows, Linux</span></a>
         <h1 id="hero-h">Retro music player for your desktop</h1>
-        <p class="hero__lead">Your albums sit in a stack of sleeves; pick one and the disc slides out. Synced lyrics, music videos and a 10-band equalizer, free on three systems.</p>
-        <div class="btn-row"><a class="btn btn--primary" href="#download">Download Noctune<svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"/><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"/></svg></a><a class="btn btn--secondary" href="#sequence">See the disc sequence</a></div>
+        <p class="hero__lead">Your albums sit in a stack of sleeves; pick one and the disc slides out. Noctune finds your music, its synced lyrics and its official video, free on three systems.</p>
+        <div class="btn-row"><a class="btn btn--primary" href="#download" data-os-download>Download Noctune<svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"/><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"/></svg></a><a class="btn btn--secondary" href="#sequence">See the disc sequence</a></div>
+        <p class="os-note" data-os-note hidden></p>
       </div>
       <div class="hero__window app-window">
         <!-- the real app, built for the web with its demo library -->
@@ -164,12 +168,12 @@
           <article class="card card--row card--open span-6">
             <h3>Library screen</h3>
             <p>Up and down move the sleeves; the city behind them never moves.</p>
-            <div class="panel"><img class="frame__img" src="shots/library.webp" alt="Album sleeves stacked on a halftone city backdrop" loading="lazy"></div>
+            <div class="panel"><img width="2560" height="1440" class="frame__img" src="shots/library.webp" alt="Album sleeves stacked on a halftone city backdrop" loading="lazy"></div>
           </article>
           <article class="card card--row card--open span-6">
             <h3>Play prompt</h3>
             <p>Press Enter and the disc slides from behind the cover, spinning.</p>
-            <div class="panel"><img class="frame__img" src="shots/disc.webp" alt="A silver disc beside the white dragon cover with a PLAY prompt" loading="lazy"></div>
+            <div class="panel"><img width="2560" height="1440" class="frame__img" src="shots/disc.webp" alt="A silver disc beside the white dragon cover with a PLAY prompt" loading="lazy"></div>
           </article>
         </div>
       </div>
@@ -177,12 +181,12 @@
         <article class="card card--row card--open span-6">
           <h3>Loading screen</h3>
           <p>The backdrop turns to night while the track loads underneath.</p>
-          <div class="panel"><img class="frame__img" src="shots/launch.webp" alt="The cover blurred over a blue night city with the disc moving right" loading="lazy"></div>
+          <div class="panel"><img width="2560" height="1440" class="frame__img" src="shots/launch.webp" alt="The cover blurred over a blue night city with the disc moving right" loading="lazy"></div>
         </article>
         <article class="card card--row card--open span-6">
           <h3>Video player</h3>
           <p>The video fills the screen and each lyric lights up on its beat.</p>
-          <div class="panel"><img class="frame__img" src="shots/player.webp" alt="A music video with a lyric line and playback controls" loading="lazy"></div>
+          <div class="panel"><img width="2560" height="1440" class="frame__img" src="shots/player.webp" alt="A music video with a lyric line and playback controls" loading="lazy"></div>
         </article>
       </div>
     </div>
@@ -196,15 +200,16 @@
       <div class="grid grid--top">
         <div class="span-5">
           <dl class="feature-rows">
-            <div><dt>Lyrics</dt><dd>Timed .lrc files, word-level highlighting, a 0.1 s offset key.</dd></div>
+            <div><dt>Your music</dt><dd>Finds your Music folder on first launch; reads untagged “Artist - Title” files.</dd></div>
+            <div><dt>Lyrics</dt><dd>Found online for every song and saved for offline, synced word by word.</dd></div>
+            <div><dt>Videos</dt><dd>Plays each song’s official video in YouTube’s player at the best quality your screen allows.</dd></div>
             <div><dt>Timeline</dt><dd>Drag to seek, ten-second skips, buffered range shown.</dd></div>
             <div><dt>Equalizer</dt><dd>Ten bands, preamp, six presets and your own.</dd></div>
-            <div><dt>Playlists</dt><dd>Stacked like albums, with your cover or a collage.</dd></div>
             <div><dt>Controls</dt><dd>Keyboard, gamepad, media keys; every key can be remapped.</dd></div>
           </dl>
         </div>
         <div class="frame span-7 start-6">
-          <img class="frame__img" src="shots/eq.webp" alt="The equalizer tab of the settings hub with ten band sliders" loading="lazy">
+          <img width="2560" height="1440" class="frame__img" src="shots/eq.webp" alt="The equalizer tab of the settings hub with ten band sliders" loading="lazy">
         </div>
       </div>
     </div>
@@ -219,11 +224,11 @@
       <table class="sources">
         <thead><tr><th scope="col">Source</th><th scope="col">Plays</th><th scope="col">If it can’t play</th></tr></thead>
         <tbody>
-          <tr><td><span class="src-name"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 4h10l6 6v10H4z"/><path d="M14 4v6h6"/></svg>Local files</span></td><td>MP3, FLAC, WAV, AAC, OGG and MP4 video, with embedded art and sidecar lyrics; your files are never changed</td><td>A moved or damaged file is replaced by the same song from a connected service</td></tr>
+          <tr><td><span class="src-name"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 4h10l6 6v10H4z"/><path d="M14 4v6h6"/></svg>Local files</span></td><td>Your Music folder, found on first launch, plus any MP3, FLAC, WAV, AAC, OGG or MP4 you add; files are never changed</td><td>A moved or damaged file is replaced by the same song from a connected service</td></tr>
           <tr><td><span class="src-name"><img class="ic ic-28" src="assets/icons/brand/spotify.svg" alt="" width="28" height="28">Spotify</span></td><td>Your saved albums and playlists with real covers, inside Noctune where the system supports it, otherwise on your Spotify app</td><td>Opens the Spotify app for you when no device is running, or plays your own copy of the song</td></tr>
           <tr><td><span class="src-name"><img class="ic ic-28" src="assets/icons/brand/soundcloud.svg" alt="" width="62" height="28">SoundCloud</span></td><td>Your likes and playlists, through the equalizer</td><td>Preview-only and app-blocked tracks play from your files or Spotify instead</td></tr>
           <tr><td><span class="src-name"><img class="ic ic-28" src="assets/icons/brand/applemusic.svg" alt="" width="28" height="28">Apple Music</span></td><td>Reads the Apple Music catalog with a MusicKit token</td><td>Songs play from your files, Spotify or SoundCloud</td></tr>
-          <tr><td><span class="src-name"><img class="ic ic-28" src="assets/icons/brand/youtube.svg" alt="" width="38" height="28">YouTube</span></td><td>An official video you link to a track, in YouTube's own player</td><td>The song keeps playing with the visualizer, with a link to watch on YouTube</td></tr>
+          <tr><td><span class="src-name"><img class="ic ic-28" src="assets/icons/brand/youtube.svg" alt="" width="38" height="28">YouTube</span></td><td>Each song’s official video, found automatically, in YouTube’s own player</td><td>The song keeps playing with the visualizer, with a link to watch on YouTube</td></tr>
         </tbody>
       </table>
     </div>
@@ -254,7 +259,7 @@
         </article>
         </div>
         <div class="span-7 start-6 stack-4">
-          <div class="frame dl-shot"><img class="frame__img" src="shots/library.webp" alt="Noctune's library screen with album sleeves on the halftone city" loading="lazy"></div>
+          <div class="frame dl-shot"><img width="2560" height="1440" class="frame__img" src="shots/library.webp" alt="Noctune's library screen with album sleeves on the halftone city" loading="lazy"></div>
           <p class="note">Service sign-in tokens live in your system keychain. On Linux that needs GNOME Keyring or KWallet running.</p>
         </div>
       </div>
@@ -291,6 +296,21 @@
   </div>
 </footer>
 
+<script>
+  // Point the main download button at this visitor's installer; everything still works without it.
+  (function () {
+    var base = 'https://github.com/kerioxsx/noctune/releases/latest/download/';
+    var ua = navigator.userAgent, p = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+    var os = /Win/i.test(p) || /Windows/.test(ua) ? 'win' : /Mac/i.test(p) || /Macintosh/.test(ua) ? (/iPhone|iPad/.test(ua) || navigator.maxTouchPoints > 1 ? null : 'mac') : /Linux/i.test(p) && !/Android/i.test(ua) ? 'linux' : null;
+    if (!os) return;
+    var files = { win: ['Noctune-Setup.exe', 'Windows'], mac: ['Noctune-mac-arm64.dmg', 'macOS (Apple silicon)'], linux: ['Noctune-linux.AppImage', 'Linux'] };
+    var btn = document.querySelector('[data-os-download]'), note = document.querySelector('[data-os-note]');
+    if (!btn || !note) return;
+    btn.href = base + files[os][0];
+    note.innerHTML = 'For ' + files[os][1] + (os === 'mac' ? ' · <a href="' + base + 'Noctune-mac-x64.dmg">Intel Mac</a>' : '') + ' · <a href="#download">Other systems</a>';
+    note.hidden = false;
+  })();
+</script>
 <script type="module" src="assets/system.js"></script>
 <script type="module" src="assets/motion/motion.js"></script>
 <script type="module" src="assets/layout/layout.js"></script>

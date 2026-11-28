@@ -497,7 +497,7 @@ export function App() {
             <>
               <Status onSettings={() => { play('confirm'); useStore.setState({ screen: 'settings', returnTo: screen }); }} h24={settings.clock24} reduced={reduced} />
               {nowTrack && screen !== 'launch' && (
-                <button className={`now-mini ui-text${s.playing ? '' : ' paused'}`} onClick={() => go('player')} title="Now playing (Tab)">
+                <button className={`now-mini ui-text${s.playing ? '' : ' paused'}`} onClick={() => go('player')} title="Now playing (V)">
                   <span className="bars" aria-hidden><i /><i /><i /></span>
                   <b>{nowTrack.title}</b>
                   <span>— {nowTrack.artist}</span>

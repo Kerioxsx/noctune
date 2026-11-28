@@ -35,7 +35,7 @@ export const DEFAULT_KEYMAP: Record<Action, string[]> = {
   fullscreen: ['f', 'F11'],
   lyricsEarlier: ['['],
   lyricsLater: [']'],
-  nowPlaying: ['Tab'],
+  nowPlaying: ['v'],
   repeat: ['r'],
   tabPrev: ['q'],
   tabNext: ['e'],
@@ -83,7 +83,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   onboarded: false,
-  settingsVersion: 2,
+  settingsVersion: 3,
   autoVideo: true,
   background: { kind: 'city', fit: 'cover', print: false, dim: 0.15 },
   effects: { enabled: true, intensity: 0.6, vhs: true, scanlineStrength: 0.6, halftone: true, scanlines: true, noise: true, glitches: true, chroma: true, vignette: true },
@@ -309,6 +309,12 @@ export async function boot() {
     merged.lyrics.community = true;
     merged.autoVideo = true;
     merged.settingsVersion = 2;
+  }
+  // v3: Tab is for moving focus (keyboard users, screen readers); "Now playing" moved to V
+  if ((settings.settingsVersion ?? 1) < 3) {
+    merged.keymap.nowPlaying = merged.keymap.nowPlaying.filter((k) => k !== 'Tab');
+    if (!merged.keymap.nowPlaying.length) merged.keymap.nowPlaying = ['v'];
+    merged.settingsVersion = 3;
   }
   const tracks: Record<string, LibraryTrack> = {};
   for (const t of [...demo.tracks, ...index.tracks]) tracks[t.id] = applyLinks(t, merged);
