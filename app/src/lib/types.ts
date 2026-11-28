@@ -1,4 +1,4 @@
-export type Source = 'demo' | 'local' | 'spotify' | 'soundcloud' | 'apple';
+export type Source = 'demo' | 'local' | 'spotify' | 'soundcloud' | 'apple' | 'discover';
 export type ProviderId = 'spotify' | 'soundcloud' | 'apple';
 
 export interface LibraryTrack {
@@ -152,9 +152,17 @@ export interface BridgeAPI {
   };
   lyrics: { lookup(q: { title: string; artist: string; album?: string; duration?: number }): Promise<string | null> };
   /** official music video on YouTube, found through MusicBrainz; returns the video id */
+  discover: {
+    similar(seeds: string[], known: string[], limit?: number): Promise<FoundSong[]>;
+    releases(artists: string[]): Promise<Release[]>;
+    releaseSongs(key: string): Promise<FoundSong[]>;
+  };
+  youtube: { status(): Promise<boolean>; signIn(): Promise<boolean>; signOut(): Promise<void> };
   video: { lookup(q: { title: string; artist: string; album?: string; duration?: number }): Promise<string | null> };
   window: { toggleFullscreen(): Promise<boolean>; isFullscreen(): Promise<boolean>; onFullscreen(cb: (v: boolean) => void): () => void };
   openExternal(url: string): Promise<void>;
+  /** system notification while Noctune is in the background */
+  systemNotify(title: string, body: string): Promise<void>;
   clearCache(): Promise<void>;
   /** in-app updates from GitHub Releases */
   updates: {
@@ -167,3 +175,7 @@ export interface BridgeAPI {
   /** erase every file Noctune stored and restart */
   deleteAllData(): Promise<void>;
 }
+
+/** A song found by discovery (not in the library); plays through its official video. */
+export interface FoundSong { key: string; title: string; artist: string; album: string; duration: number; artwork?: string }
+export interface Release { key: string; artist: string; title: string; date: string; type: string; artwork?: string }

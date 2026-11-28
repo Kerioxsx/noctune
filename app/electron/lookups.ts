@@ -1,4 +1,5 @@
 import { readJson, writeJson } from './store';
+import { searchOfficialVideo } from './youtube';
 
 /**
  * Online lookups for songs: timed lyrics from LRCLIB and official music videos
@@ -20,7 +21,7 @@ export interface SongQuery {
 
 type Cache<T> = Record<string, { v: T | null; at: number }>;
 // v2: queries are cleaned first (main artist, no "Remastered"/"feat." tails), so earlier misses are retried
-const key = (q: SongQuery) => `v2::${q.artist.toLowerCase().trim()}::${q.title.toLowerCase().trim()}`;
+const key = (q: SongQuery) => `v3::${q.artist.toLowerCase().trim()}::${q.title.toLowerCase().trim()}`;
 
 /** First credited artist: "A, B", "A & B", "A feat. B", "A x B" all become "A". */
 export function mainArtist(artist: string) {
@@ -135,6 +136,9 @@ const lucene = (s: string) => s.replace(/([+\-&|!(){}[\]^"~*?:\\/])/g, '\\$1');
 
 export function findOfficialVideo(raw: SongQuery): Promise<string | null> {
   return cached<string>('video-cache', raw, (cq) => eachArtist(cq, async (q) => {
+    // YouTube itself first (finds nearly every official video), then MusicBrainz's links
+    const direct = await searchOfficialVideo(q).catch(() => null);
+    if (direct) return direct;
     const query = `recording:"${lucene(q.title)}" AND artist:"${lucene(q.artist)}" AND video:true`;
     const res = await mb<{ recordings: { id: string; score: number; title: string; 'artist-credit'?: { name: string }[] }[] }>(`recording?query=${encodeURIComponent(query)}&fmt=json&limit=5`);
     const t = words(q.title);

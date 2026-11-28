@@ -5,14 +5,16 @@ import { demoArtwork } from './lib/demoArt';
 
 export type RepeatMode = 'off' | 'all' | 'one';
 export type Screen = 'library' | 'confirm' | 'launch' | 'loading' | 'player' | 'settings';
-export type Shelf = 'albums' | 'playlists';
+export type Shelf = 'albums' | 'playlists' | 'feed';
+/** off: in order · shuffle: every song of the album/playlist once, random order · magic: shuffle plus songs you may like */
+export type ShuffleMode = 'off' | 'shuffle' | 'magic';
 export type SettingsTab = 'equalizer' | 'settings' | 'accessibility' | 'connections' | 'account';
 export const SETTINGS_TABS: SettingsTab[] = ['equalizer', 'settings', 'accessibility', 'connections', 'account'];
 
 export type Action =
   | 'up' | 'down' | 'left' | 'right' | 'confirm' | 'back' | 'info' | 'options' | 'settings'
   | 'playPause' | 'next' | 'prev' | 'seekFwd' | 'seekBack' | 'volUp' | 'volDown' | 'mute'
-  | 'fullscreen' | 'lyricsEarlier' | 'lyricsLater' | 'nowPlaying' | 'repeat' | 'tabPrev' | 'tabNext';
+  | 'fullscreen' | 'lyricsEarlier' | 'lyricsLater' | 'nowPlaying' | 'repeat' | 'shuffle' | 'tabPrev' | 'tabNext';
 
 export const DEFAULT_KEYMAP: Record<Action, string[]> = {
   up: ['ArrowUp', 'w'],
@@ -37,6 +39,7 @@ export const DEFAULT_KEYMAP: Record<Action, string[]> = {
   lyricsLater: [']'],
   nowPlaying: ['v'],
   repeat: ['r'],
+  shuffle: ['h'],
   tabPrev: ['q'],
   tabNext: ['e'],
 };
@@ -65,6 +68,9 @@ export interface Settings {
   animation: number;
   sort: 'library' | 'title' | 'artist' | 'source' | 'year';
   repeat: RepeatMode;
+  shuffle?: ShuffleMode;
+  /** pop-up when a favourite artist releases something */
+  releaseAlerts: boolean;
   repeatPersist: boolean;
   resumeSession: boolean;
   volume: number;
@@ -94,6 +100,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sort: 'library',
   repeat: 'off',
   repeatPersist: true,
+  releaseAlerts: true,
   resumeSession: true,
   volume: 0.85,
   muted: false,
@@ -116,8 +123,18 @@ export interface Profile {
   account: null | { email: string };
 }
 
+export interface Alert {
+  id: string;
+  kind: 'update' | 'release';
+  title: string;
+  text: string;
+  artwork?: string;
+  /** for releases: what to play */
+  release?: import('./lib/types').Release;
+}
+
 export interface StackItem {
-  kind: 'album' | 'playlist' | 'new';
+  kind: 'album' | 'playlist' | 'new' | 'mix';
   id: string;
   title: string;
   subtitle: string;
@@ -153,11 +170,21 @@ interface State {
 
   queue: string[];
   index: number;
+  /** For you: mixes built from what you play most (songs from discovery) */
+  feed: { at: number; sections: { id: string; title: string; subtitle: string; trackIds: string[]; artwork?: string }[] } | null;
+  feedLoading: boolean;
+  /** pop-up notices: an update is ready, or a favourite artist released something */
+  alerts: Alert[];
+  shuffle: ShuffleMode;
+  /** the album/playlist in its own order while shuffled */
+  baseQueue: string[] | null;
   playing: boolean;
   buffering: boolean;
   error: string | null;
   /** a fallback that kept the music going, shown in the player */
   notice: { text: string; url?: string; link?: string } | null;
+  /** YouTube is showing an ad before or during the video */
+  adShowing: boolean;
   repeat: RepeatMode;
 
   set: (p: Partial<State>) => void;
@@ -181,7 +208,7 @@ export const useStore = create<State>((set, get) => ({
   screen: 'library',
   returnTo: 'library',
   shelf: 'albums',
-  sel: { albums: 0, playlists: 0 },
+  sel: { albums: 0, playlists: 0, feed: 0 },
   trackList: { open: false, index: 0 },
   settingsTab: 'equalizer',
   editing: null,
@@ -189,10 +216,16 @@ export const useStore = create<State>((set, get) => ({
   launchFrom: null,
   queue: [],
   index: -1,
+  shuffle: 'off',
+  baseQueue: null,
+  feed: null,
+  feedLoading: false,
+  alerts: [],
   playing: false,
   buffering: false,
   error: null,
   notice: null,
+  adShowing: false,
   repeat: 'off',
   set: (p) => set(p),
   updateSettings: (fn) => {
@@ -211,7 +244,10 @@ export const useStore = create<State>((set, get) => ({
 }));
 
 // ------------------------------------------------------------- selectors
-export function stackItems(s: Pick<State, 'albums' | 'playlists' | 'providerPlaylists' | 'settings' | 'shelf' | 'tracks'>, shelf: Shelf = s.shelf): StackItem[] {
+export function stackItems(s: Pick<State, 'albums' | 'playlists' | 'providerPlaylists' | 'settings' | 'shelf' | 'tracks' | 'feed'>, shelf: Shelf = s.shelf): StackItem[] {
+  if (shelf === 'feed') {
+    return (s.feed?.sections ?? []).map((f) => ({ kind: 'mix', id: f.id, title: f.title, subtitle: f.subtitle, artwork: f.artwork, source: 'discover', trackIds: f.trackIds }));
+  }
   if (shelf === 'albums') {
     const demos = s.settings.demos;
     const ownMusic = s.albums.some((a) => a.source !== 'demo') || s.providerPlaylists.length > 0;
@@ -342,6 +378,7 @@ export async function boot() {
     files: index.files,
     providers,
     repeat: merged.repeatPersist ? merged.repeat : 'off',
+    shuffle: merged.repeatPersist && (merged.shuffle === 'shuffle' || merged.shuffle === 'magic') ? merged.shuffle : 'off',
   });
   void loadProviders();
   // first launch of the desktop app: pick up the system Music folder straight away
@@ -349,7 +386,7 @@ export async function boot() {
     bridge.library.autoDetect().then((r) => {
       if (!r) return;
       applyLibrary(r.index);
-      useStore.setState({ detected: { folders: r.folders, added: r.report.added }, sel: { albums: 0, playlists: 0 } });
+      useStore.setState({ detected: { folders: r.folders, added: r.report.added }, sel: { albums: 0, playlists: 0, feed: 0 } });
     }).catch(() => undefined);
   }
 }

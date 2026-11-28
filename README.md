@@ -43,14 +43,15 @@ The GitHub Actions workflow in `.github/workflows/release.yml` builds all three 
 | Action | Keyboard | Controller |
 |---|---|---|
 | Move through the stack | ↑ ↓ | D-pad, left stick |
-| Albums / playlists | ← → | D-pad |
+| Albums / playlists / For you | ← → | D-pad |
 | Select / play | Enter | A (×) |
 | Back | Esc | B (○) |
-| Track list | I | Y (△) |
+| Song list (type / to search) | I | Y (△) |
 | Options (add to playlist, link video, import lyrics, change background) | O | X (□) |
 | Settings | , | Start |
 | Play / pause, next, previous | Space, N, P | |
 | Seek ±10 s | J / L (← → in the player) | |
+| Shuffle: off / shuffle / magic | H | |
 | Lyrics earlier / later | [ / ] | |
 | Full screen | F | |
 
@@ -62,7 +63,15 @@ On first launch Noctune adds your system Music folder automatically and shows wh
 
 Settings → Connections → Local files: add folders or files (MP3, FLAC, WAV, AAC/M4A, OGG/Opus, MP4/WebM). Tags and embedded artwork are read; a `.lrc` with the same name becomes the track's timed lyrics, and a video with the same name becomes its music video. Files are never modified. Untagged files named like `Artist - Title.mp3` are read from their names.
 
-For each song, Noctune finds timed lyrics on LRCLIB and the official music video through MusicBrainz, saves both, and plays the video in YouTube's player (YouTube picks the highest quality the window size and connection allow). If the video can't play, the song plays with the visualizer. Both lookups can be switched off in Settings.
+For each song, Noctune finds timed lyrics on LRCLIB and the artist's official music video on YouTube (MusicBrainz as a backup), saves both, and plays the video at the highest quality the window and connection allow. Videos whose owner keeps them on YouTube only play on YouTube's own page inside Noctune, showing just the video under the lyrics. If YouTube asks for a quick robot or cookie check, it appears right there. If a video can't play at all, the song plays with the visualizer. Both lookups can be switched off in Settings.
+
+### Shuffle, For you and new releases
+
+- **Shuffle** (H, the player button or the library panel): your album or playlist in random order. **Magic shuffle** mixes in a song you may like after every two of yours.
+- **For you** (third shelf): mixes built every day from the artists you play most, plus new songs from them. Suggestions come from Deezer's public catalogue and play as their official videos.
+- **Alerts**: a pop-up with a chime when an update is ready or one of your most-played artists releases something (Settings → Settings → New release alerts).
+
+Listening history stays on your computer.
 
 ### Services
 
@@ -71,7 +80,7 @@ For each song, Noctune finds timed lyrics on LRCLIB and the official music video
 | Spotify | Saved albums and playlists with covers; plays inside Noctune where the system supports Widevine, otherwise on your Spotify app, which Noctune opens if none is running (Premium) | Create an app at developer.spotify.com with redirect URI `http://127.0.0.1:43821/callback`, paste its Client ID |
 | SoundCloud | Likes and playlists, with EQ; preview-only or blocked tracks fall back to another copy | Register a SoundCloud app with the same redirect URI, paste Client ID and secret |
 | Apple Music | Developer-token check and catalog metadata; songs play from your files, Spotify or SoundCloud | Paste a MusicKit developer token |
-| YouTube | An official video linked to a track plays in YouTube's own player; if it can't, the song plays with the visualizer | Track options → Link official video |
+| YouTube | Official videos play automatically; optional sign-in plays them from your account (no ads with Premium, age-restricted videos work) | Settings → Connections → YouTube → Sign in |
 
 When a track can't play from its source (moved file, preview-only, blocked, no device), Noctune plays the same song from another source in your library and shows which one.
 

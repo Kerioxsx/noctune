@@ -48,7 +48,7 @@ export function Welcome({ onClose, onConnect }: { onClose: () => void; onConnect
       if (!r) return; // picker cancelled: stay on the welcome screen
       applyLibrary(r.index);
       // your own albums sit at the front of the stack
-      useStore.setState({ shelf: 'albums', sel: { albums: 0, playlists: useStore.getState().sel.playlists } });
+      useStore.setState({ shelf: 'albums', sel: { ...useStore.getState().sel, albums: 0 } });
       notify(r.report.added ? `Added ${r.report.added} track${r.report.added === 1 ? '' : 's'}. Your music is at the front of the stack.` : 'No playable music was found there. Try MP3, FLAC, M4A, OGG, WAV or MP4 files.', r.report.added ? 'info' : 'error');
       if (r.report.added) {
         play('confirm');

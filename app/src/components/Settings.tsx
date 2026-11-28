@@ -186,7 +186,8 @@ function GeneralTab() {
         <Toggle label="Remember repeat mode" hint="Off: repeat resets each session." checked={s.repeatPersist} onChange={(v) => update((x) => (x.repeatPersist = v))} />
         <Toggle label="Resume last session" hint="Reopens the last queue, paused where you left it." checked={s.resumeSession} onChange={(v) => update((x) => (x.resumeSession = v))} />
         <Toggle label="Find lyrics online" hint="Looks up timed lyrics on LRCLIB (lrclib.net) for songs that have none, and saves them so they work offline. Sends the song's title, artist, album and length to LRCLIB." checked={s.lyrics.community} onChange={(v) => update((x) => (x.lyrics.community = v))} />
-        <Toggle label="Play official music videos" hint="Finds each song's official video through MusicBrainz (musicbrainz.org) and plays it in YouTube's player at the best quality your screen and connection allow. Sends the song's title and artist to MusicBrainz; the video comes from YouTube." checked={s.autoVideo} onChange={(v) => update((x) => (x.autoVideo = v))} />
+        <Toggle label="Play official music videos" hint="Finds each song's official video on YouTube (searching for the song's title and artist) and plays it at the best quality your screen and connection allow. Videos the owner keeps on YouTube only play through YouTube's own page inside Noctune." checked={s.autoVideo} onChange={(v) => update((x) => (x.autoVideo = v))} />
+        <Toggle label="New release alerts" hint="A pop-up with a chime when an artist you listen to most releases something. Checks Deezer's public catalogue with those artists' names twice a day." checked={s.releaseAlerts} onChange={(v) => update((x) => (x.releaseAlerts = v))} />
       </Group>
       <Group title="Privacy & data">
         <div className="row"><div className="row-l"><span>Diagnostics</span><small>Noctune sends no analytics or crash reports.</small></div></div>
@@ -221,7 +222,7 @@ function AboutRow() {
 const ACTION_LABEL: Record<Action, string> = {
   up: 'Move up', down: 'Move down', left: 'Left / switch shelf', right: 'Right / switch shelf', confirm: 'Select (×)', back: 'Back (○)', info: 'Track list (△)', options: 'Options (□)', settings: 'Settings',
   playPause: 'Play / pause', next: 'Next track', prev: 'Previous track', seekFwd: 'Forward 10s', seekBack: 'Back 10s', volUp: 'Volume up', volDown: 'Volume down', mute: 'Mute',
-  fullscreen: 'Full screen', lyricsEarlier: 'Lyrics earlier', lyricsLater: 'Lyrics later', nowPlaying: 'Now playing', repeat: 'Repeat mode', tabPrev: 'Previous tab', tabNext: 'Next tab',
+  fullscreen: 'Full screen', lyricsEarlier: 'Lyrics earlier', lyricsLater: 'Lyrics later', nowPlaying: 'Now playing', repeat: 'Repeat mode', shuffle: 'Shuffle mode', tabPrev: 'Previous tab', tabNext: 'Next tab',
 };
 const keyName = (k: string) => (k === ' ' ? 'Space' : k.length === 1 ? k.toUpperCase() : k.replace('Arrow', '').replace('Media', ''));
 
@@ -368,6 +369,46 @@ function ProviderCard({ p }: { p: ProviderStatus }) {
   );
 }
 
+/** Optional YouTube sign-in: videos then play from the user's account (no ads with Premium, age-restricted videos work). */
+function YouTubeRow() {
+  const notify = useStore((s) => s.notify);
+  const [on, setOn] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (isDesktop) void bridge.youtube.status().then(setOn).catch(() => setOn(false));
+  }, []);
+  const run = async (fn: () => Promise<unknown>) => {
+    setBusy(true);
+    try {
+      await fn();
+      const now = await bridge.youtube.status();
+      setOn(now);
+      return now;
+    } catch (e) {
+      notify(`YouTube: ${(e as Error).message}`, 'error');
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="provider">
+      <header>
+        <b>YouTube</b>
+        <span className={`pill${on ? ' on' : ''}`}>{on === null ? '…' : on ? 'Signed in' : 'Not signed in'}</span>
+      </header>
+      <p className="note">Official videos play without signing in. Sign in to play them from your own account: no ads with YouTube Premium, and age-restricted videos work. Sign-in happens on Google’s own page; Noctune never sees your password. If Google says the browser is not supported, videos still play signed out.</p>
+      <div className="row end">
+        {on ? (
+          <button className="btn" disabled={busy || !isDesktop} onClick={() => void run(() => bridge.youtube.signOut()).then(() => notify('Signed out of YouTube.'))}>Sign out</button>
+        ) : (
+          <button className="btn primary" disabled={busy || !isDesktop} onClick={() => void run(() => bridge.youtube.signIn()).then((ok) => ok !== null && notify(ok ? 'Signed in to YouTube.' : 'YouTube sign-in was not completed.', ok ? 'info' : 'error'))}>{busy ? 'Waiting for sign-in…' : 'Sign in'}</button>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function ConnectionsTab() {
   const providers = useStore((s) => s.providers);
   const folders = useStore((s) => s.folders);
@@ -418,6 +459,7 @@ function ConnectionsTab() {
         </div>
       </section>
       {providers.map((p) => <ProviderCard key={p.id} p={p} />)}
+      <YouTubeRow />
       <p className="note">Official music videos: open a track’s options (□) and link its official YouTube video. It plays in YouTube’s own embedded player; videos whose owners block embedding will say so instead of playing.</p>
     </>
   );

@@ -17,8 +17,10 @@ import { SettingsHub } from './components/Settings';
 import { PlaylistEditor } from './components/PlaylistEditor';
 import { Welcome } from './components/Welcome';
 import { UpdateNotice } from './components/UpdateNotice';
+import { Notifier } from './components/Notifier';
+import { refreshFeed } from './engine/discover';
 import { isDesktop } from './lib/bridge';
-import { Cross, Circle, Triangle, Square } from './components/Icons';
+import { Cross, Circle, Triangle, Square, Shuffle, Sparkle } from './components/Icons';
 
 const STAGE_W = 1280;
 const STAGE_H = 720;
@@ -41,7 +43,7 @@ export function App() {
   const s = useStore();
   const { screen, shelf, sel, settings } = s;
   const items = useMemo(() => stackItems(s, shelf), [s.albums, s.playlists, s.providerPlaylists, s.settings.demos, s.settings.sort, shelf, s.tracks]);
-  const selIndex = Math.min(sel[shelf], Math.max(0, items.length - 1));
+  const selIndex = Math.min(sel[shelf] ?? 0, Math.max(0, items.length - 1));
   const front: StackItem | undefined = items[selIndex];
   const nowTrack = currentTrack(s);
   const [glitch, setGlitch] = useState(false);
@@ -97,9 +99,10 @@ export function App() {
     play('tick');
   };
   const switchShelf = (to?: Shelf) => {
-    const next = to ?? (shelf === 'albums' ? 'playlists' : 'albums');
+    const next = to ?? (shelf === 'albums' ? 'playlists' : shelf === 'playlists' ? 'feed' : 'albums');
     if (next === shelf) return;
     useStore.setState({ shelf: next, trackList: { open: false, index: 0 } });
+    if (next === 'feed') void refreshFeed();
     play('tab');
     doGlitch();
   };
@@ -189,8 +192,8 @@ export function App() {
       }
       if (performance.now() - started > 12000) {
         // a video that never started falls back to the song's audio; anything else gets the usual recovery
-        if (controller.active.kind === 'youtube') controller.fail('The video did not start.', { video: true });
-        else controller.fail('This is taking longer than expected. The file may be large or the network slow.');
+        // (videos have their own checks: YouTube's page may be showing an ad or a quick check)
+        if (controller.active.kind !== 'youtube') controller.fail('This is taking longer than expected. The file may be large or the network slow.');
         go('player');
         return;
       }
@@ -293,11 +296,12 @@ export function App() {
     ];
     const list: MenuItem[] = [{ label: it.title, heading: true }, { label: 'Play', run: () => launch(rowsFor(it).map((r) => r.trackId), 0) }, { label: 'Shuffle play', run: () => {
       const ids = rowsFor(it).map((r) => r.trackId);
-      for (let i = ids.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [ids[i], ids[j]] = [ids[j], ids[i]];
-      }
-      launch(ids, 0);
+      if (s.shuffle === 'off') controller.setShuffle('shuffle');
+      launch(ids, Math.floor(Math.random() * ids.length));
+    } }, { label: 'Magic shuffle', run: () => {
+      const ids = rowsFor(it).map((r) => r.trackId);
+      controller.setShuffle('magic');
+      launch(ids, Math.floor(Math.random() * ids.length));
     } }, { label: 'Show tracks', run: () => useStore.setState({ trackList: { open: true, index: 0 } }) }];
     if (own) {
       list.push({ label: 'Edit details & cover…', run: () => useStore.setState({ editing: own.id }) });
@@ -328,6 +332,11 @@ export function App() {
       queueMicrotask(() => controller.applyVolume());
       return;
     }
+    if (a === 'shuffle') {
+      const m = controller.cycleShuffle();
+      s.notify(m === 'off' ? 'Shuffle off' : m === 'shuffle' ? 'Shuffle: this album or playlist in random order' : 'Magic shuffle: mixed with songs you may like');
+      return;
+    }
     if (a === 'repeat') {
       const m = controller.cycleRepeat();
       s.notify(`Repeat ${m === 'off' ? 'off' : m === 'all' ? 'all' : 'one'}`);
@@ -350,8 +359,8 @@ export function App() {
       if (a === 'up') return step(1); // up pulls the next sleeve forward from the stack
       if (a === 'down') return step(-1); // down sends it back
       if (screen === 'library') {
-        if (a === 'left') return switchShelf('albums');
-        if (a === 'right') return switchShelf('playlists');
+        if (a === 'left') return switchShelf(shelf === 'feed' ? 'playlists' : 'albums');
+        if (a === 'right') return switchShelf(shelf === 'albums' ? 'playlists' : 'feed');
         if (a === 'confirm') return void openItem();
         if (a === 'info') {
           if (!front || front.kind === 'new') return;
@@ -451,7 +460,12 @@ export function App() {
               {screen === 'library' && (
                 <>
                   <div className="hud-shade" aria-hidden />
-                  <div className="hud-title ui-text">{shelf === 'albums' ? 'Select a Soundtrack' : 'Select a Playlist'}</div>
+                  <div className="hud-title ui-text">{shelf === 'albums' ? 'Select a Soundtrack' : shelf === 'playlists' ? 'Select a Playlist' : 'For you'}</div>
+                  {shelf === 'feed' && !items.length && (
+                    <div className="feed-empty ui-text" role="status">
+                      {s.feedLoading ? 'Finding songs you may like…' : 'Your For you mixes appear here after you play some of your music. They come from the artists you listen to most and refresh every day.'}
+                    </div>
+                  )}
                   {front && (
                     <div className="now-label ui-text" aria-live="polite">
                       <div className="t">{front.title}</div>
@@ -461,6 +475,7 @@ export function App() {
                   <div className="shelf-switch ui-text" role="group" aria-label="Shelf">
                     <button aria-pressed={shelf === 'albums'} onClick={() => switchShelf('albums')}>Albums</button>
                     <button aria-pressed={shelf === 'playlists'} onClick={() => switchShelf('playlists')}>Playlists</button>
+                    <button aria-pressed={shelf === 'feed'} onClick={() => switchShelf('feed')}>For you</button>
                   </div>
                 </>
               )}
@@ -525,6 +540,7 @@ export function App() {
             />
           )}
           {(screen === 'library' || screen === 'confirm') && !welcome && <UpdateNotice />}
+          <Notifier onPlay={(ids) => launch(ids, 0)} />
           {s.editing && <PlaylistEditor id={s.editing} onClose={() => useStore.setState({ editing: null })} />}
           {menu && <Menu items={menu.items} x={menu.x} y={menu.y} onClose={() => setMenu(null)} />}
           {s.toast && <div className={`toast ${s.toast.tone}`} role="status">{s.toast.text}</div>}
@@ -536,21 +552,29 @@ export function App() {
 }
 
 function InfoPanel({ screen, item }: { screen: string; item?: StackItem }) {
+  const shuffle = useStore((s) => s.shuffle);
   const text =
     screen === 'confirm'
-      ? item?.kind === 'playlist'
-        ? 'A playlist plays like a disc: in order, from the top. Open the track list to start anywhere.'
-        : 'Ready to play from the first track. Open the track list to start from another song.'
+      ? item?.kind === 'mix'
+        ? 'Songs picked for you from artists like the ones you play. Each plays as its official video.'
+        : item?.kind === 'playlist'
+        ? 'A playlist plays like a disc. Open the song list to search it or start anywhere.'
+        : 'Ready to play. Open the song list to search it or start from another song.'
       : 'Choose your soundtrack. Each record sets a different atmosphere and shapes the night ahead.';
   return (
     <aside className="info-panel ui-text">
       <p>{text}</p>
       <div className="hints">
         <span><Cross /> {screen === 'confirm' ? 'Play' : 'Select'}</span>
-        <span><Triangle /> Tracks</span>
+        <span><Triangle /> Songs</span>
         <span><Circle /> Back</span>
         <span><Square /> Options</span>
       </div>
+      <button className="shuffle-line" onClick={() => controller.cycleShuffle()} aria-label={`Shuffle: ${shuffle}. Change`}>
+        {shuffle === 'magic' ? <Sparkle aria-hidden /> : <Shuffle aria-hidden />}
+        <span>{shuffle === 'off' ? 'Shuffle off' : shuffle === 'shuffle' ? 'Shuffle on' : 'Magic shuffle'}</span>
+        <kbd>H</kbd>
+      </button>
     </aside>
   );
 }
