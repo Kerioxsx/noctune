@@ -158,6 +158,8 @@ interface State {
   error: string | null;
   /** a fallback that kept the music going, shown in the player */
   notice: { text: string; url?: string; link?: string } | null;
+  /** YouTube is showing an ad before or during the video */
+  adShowing: boolean;
   repeat: RepeatMode;
 
   set: (p: Partial<State>) => void;
@@ -193,6 +195,7 @@ export const useStore = create<State>((set, get) => ({
   buffering: false,
   error: null,
   notice: null,
+  adShowing: false,
   repeat: 'off',
   set: (p) => set(p),
   updateSettings: (fn) => {

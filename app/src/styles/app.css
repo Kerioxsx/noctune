@@ -157,7 +157,12 @@ img { display: block; }
 .player .media-host, .player .yt-host-wrap { position: absolute; inset: 0; display: grid; place-items: center; }
 .media-el { width: 100%; height: 100%; object-fit: contain; background: #000; }
 .media-el.audio-only { visibility: hidden; }
-.yt-host, .yt-host > div, .yt-host iframe { width: 100%; height: 100%; border: 0; }
+.yt-host, .yt-host > div, .yt-host iframe, .yt-host webview { width: 100%; height: 100%; border: 0; }
+.yt-host webview { display: flex; pointer-events: none; }
+.yt-host.interactive webview { pointer-events: auto; }
+.player .yt-host-wrap:has(.yt-host.interactive) { z-index: 3; }
+.player:has(.yt-host.interactive) .player-notice { z-index: 4; top: auto; bottom: 130px; }
+.ad-badge { position: absolute; left: 28px; top: 44px; font: 11px var(--mono); letter-spacing: 0.12em; color: var(--ink, #111); background: var(--cream); padding: 3px 7px; border-radius: 3px; }
 .visualizer { position: absolute; inset: 0; }
 .player .top-line { position: absolute; left: 28px; right: 28px; top: 18px; display: flex; justify-content: space-between; font: 11px var(--mono); color: var(--cream); opacity: 0.8; transition: opacity 300ms var(--ease-out); }
 .player.idle .top-line { opacity: 0; }

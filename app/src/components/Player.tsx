@@ -216,6 +216,7 @@ export function Player({ visible, onBack, onQueue, onMenu, fullscreen }: { visib
   const buffering = useStore((s) => s.buffering);
   const error = useStore((s) => s.error);
   const notice = useStore((s) => s.notice);
+  const adShowing = useStore((s) => s.adShowing);
   const repeat = useStore((s) => s.repeat);
   const settings = useStore((s) => s.settings);
   const updateSettings = useStore((s) => s.updateSettings);
@@ -272,8 +273,9 @@ export function Player({ visible, onBack, onQueue, onMenu, fullscreen }: { visib
       {track && !hasVideo && <Visualizer track={track} />}
       <div className="top-line">
         <span>{track ? `${track.album} · ${(controller.playing ?? track).source === 'demo' ? 'demo' : (controller.playing ?? track).source}` : ''}</span>
-        <span>{buffering ? 'Buffering…' : kind === 'spotify' ? 'Playing on Spotify Connect' : kind === 'youtube' ? 'Official video · YouTube player' : hasVideo ? 'Video' : 'Audio'}</span>
+        <span>{adShowing ? 'YouTube ad · the song starts after it' : buffering ? 'Buffering…' : kind === 'spotify' ? 'Playing on Spotify Connect' : kind === 'youtube' ? 'Official video · YouTube player' : hasVideo ? 'Video' : 'Audio'}</span>
       </div>
+      {adShowing && kind === 'youtube' && <span className="ad-badge" aria-hidden>AD</span>}
       {notice && !error && (
         <div className="player-notice ui-text" role="status">
           {notice.text}

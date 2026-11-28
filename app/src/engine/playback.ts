@@ -223,11 +223,44 @@ const YT_ERRORS: Record<number, string> = {
  * the app's window. The player is driven through YouTube's documented postMessage
  * commands, and only messages from that iframe are accepted.
  */
+/** YouTube's full page plays label videos that refuse to embed. Only the video is shown. */
+const PAGE_CSS = `html,body{overflow:hidden!important;background:#000!important}
+#movie_player{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:2147483647!important;background:#000!important}
+#movie_player video{width:100vw!important;height:100vh!important;left:0!important;top:0!important;object-fit:contain!important}
+.ytp-chrome-top,.ytp-chrome-bottom,.ytp-gradient-top,.ytp-gradient-bottom,.ytp-pause-overlay,.ytp-ce-element,.ytp-watermark,.iv-branding,.ytp-paid-content-overlay,.ytp-cards-teaser,.ytp-cards-button,.ytp-endscreen-content,.ytp-autonav-endscreen-countdown-overlay,.ytp-spinner-message,.ytp-contextmenu,ytd-popup-container,tp-yt-iron-overlay-backdrop{display:none!important}`;
+const PAGE_STATE = `(() => {
+  const p = document.getElementById('movie_player');
+  if (!p || typeof p.getPlayerState !== 'function') {
+    const check = !!document.querySelector('#captcha-form, .g-recaptcha, iframe[src*="recaptcha"], form[action*="consent"]') || /unusual traffic|not a robot/i.test(document.body ? document.body.innerText.slice(0, 2000) : '');
+    return check ? { check: true } : null;
+  }
+  const r = p.getPlayerResponse ? p.getPlayerResponse() : null;
+  const ps = r && r.playabilityStatus;
+  return { s: p.getPlayerState(), t: p.getCurrentTime(), d: p.getDuration(), loaded: p.getVideoLoadedFraction ? p.getVideoLoadedFraction() : 0,
+    ad: p.classList.contains('ad-showing'), id: r && r.videoDetails ? r.videoDetails.videoId : '', status: ps ? ps.status : 'OK', reason: ps ? (ps.reason || '') : '' };
+})()`;
+type PageState = { check?: boolean; s: number; t: number; d: number; loaded: number; ad: boolean; id: string; status: string; reason: string };
+type Webview = HTMLElement & { executeJavaScript(code: string): Promise<unknown>; insertCSS(css: string): Promise<string>; getURL(): string; src: string };
+/** Errors that mean "not allowed in an embedded player": the full page can still play these. */
+const EMBED_REFUSED = new Set([5, 101, 150, 152, 153]);
+
+/**
+ * Official videos. First YouTube's embedded player (light, no sign-in needed); when the
+ * video's owner refuses embedding, YouTube's own watch page, shown with only the video
+ * visible. Both run in YouTube's own sandboxed context, never in the app's window, and
+ * are driven only through YouTube's player functions. Lyrics and controls draw on top.
+ */
 class YouTubeBackend implements Backend {
   kind = 'youtube' as const;
   caps: Capabilities = { seek: true, volume: true, eq: false, repeatOne: true, video: true };
   host: HTMLDivElement;
   private frame: HTMLIFrameElement | null = null;
+  private view: Webview | null = null;
+  private mode: 'embed' | 'page' = 'embed';
+  private track: LibraryTrack | null = null;
+  private wantPlay = false;
+  private vol = { v: 1, muted: false };
+  private poll: number | undefined;
   private info = { currentTime: 0, duration: 0, loaded: 0, at: performance.now(), state: -1 };
   private onMsg = (e: MessageEvent) => this.handle(e);
 
@@ -238,13 +271,19 @@ class YouTubeBackend implements Backend {
   }
 
   private send(func: string, args: unknown[] = []) {
+    if (this.mode === 'page') {
+      const v = this.view;
+      const code = `(() => { const p = document.getElementById('movie_player'); if (p && typeof p[${JSON.stringify(func)}] === 'function') p[${JSON.stringify(func)}](...${JSON.stringify(args)}); })()`;
+      void v?.executeJavaScript(code).catch(() => undefined);
+      return;
+    }
     this.frame?.contentWindow?.postMessage(JSON.stringify({ event: 'command', func, args }), YT_ORIGIN);
   }
 
   private ready: { res: () => void; rej: (e: Error) => void } | null = null;
 
   private handle(e: MessageEvent) {
-    if (e.origin !== YT_ORIGIN || !this.frame || e.source !== this.frame.contentWindow) return;
+    if (this.mode !== 'embed' || e.origin !== YT_ORIGIN || !this.frame || e.source !== this.frame.contentWindow) return;
     let d: { event?: string; info?: unknown };
     try {
       d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
@@ -267,7 +306,15 @@ class YouTubeBackend implements Backend {
     }
     if (d.event === 'onStateChange' && typeof d.info === 'number') this.state(d.info);
     if (d.event === 'onError') {
-      const msg = YT_ERRORS[Number(d.info)] ?? 'The video could not be played.';
+      const code = Number(d.info);
+      if (EMBED_REFUSED.has(code)) {
+        // the owner only allows playback on YouTube itself: use YouTube's page
+        this.ready?.res();
+        this.ready = null;
+        this.toPage();
+        return;
+      }
+      const msg = YT_ERRORS[code] ?? 'The video could not be played.';
       if (this.ready) {
         this.ready.rej(new VideoBlocked(msg));
         this.ready = null;
@@ -288,6 +335,9 @@ class YouTubeBackend implements Backend {
   async load(t: LibraryTrack, autoplay: boolean, startAt: number) {
     if (!t.youtubeId || !/^[\w-]{11}$/.test(t.youtubeId)) throw new Error('No valid official video linked.');
     this.stop();
+    this.track = t;
+    this.wantPlay = autoplay;
+    this.mode = 'embed';
     this.info = { currentTime: startAt, duration: t.duration ?? 0, loaded: 0, at: performance.now(), state: -1 };
     const f = document.createElement('iframe');
     const q = new URLSearchParams({ enablejsapi: '1', controls: '0', rel: '0', playsinline: '1', iv_load_policy: '3', autoplay: autoplay ? '1' : '0', start: String(Math.floor(startAt)) });
@@ -298,38 +348,168 @@ class YouTubeBackend implements Backend {
     this.frame = f;
     this.host.replaceChildren(f);
     if (autoplay) {
-      // Watchdog from the moment the video is requested: if it is not really playing within
-      // 8 seconds, fall back to the song's audio rather than leave a frozen frame.
+      // Not really playing within 8 seconds (a silent refusal): try YouTube's page.
       window.setTimeout(() => {
-        if (this.frame === f && this.info.state !== 1 && this.info.state !== 2 && this.info.state !== 0) {
-          controller.fail('The video did not start.', { video: true });
-        }
+        if (this.mode === 'embed' && this.frame === f && this.info.state !== 1 && this.info.state !== 2 && this.info.state !== 0) this.toPage();
       }, 8000);
     }
-    await new Promise<void>((res, rej) => {
-      this.ready = { res, rej };
-      const listen = () => f.contentWindow?.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), YT_ORIGIN);
-      f.addEventListener('load', () => {
-        listen();
-        // the player starts listening a moment after load; ask a few times
-        let n = 0;
-        const iv = window.setInterval(() => (this.ready && n++ < 10 ? listen() : clearInterval(iv)), 300);
+    try {
+      await new Promise<void>((res, rej) => {
+        this.ready = { res, rej };
+        const listen = () => f.contentWindow?.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), YT_ORIGIN);
+        f.addEventListener('load', () => {
+          listen();
+          let n = 0;
+          const iv = window.setInterval(() => (this.ready && n++ < 10 ? listen() : clearInterval(iv)), 300);
+        });
+        window.setTimeout(() => {
+          if (this.ready) {
+            this.ready = null;
+            rej(new Error('The embedded player did not respond.'));
+          }
+        }, 12000);
       });
-      window.setTimeout(() => {
-        if (this.ready) {
-          this.ready = null;
-          rej(new Error('YouTube did not respond. Check the internet connection.'));
-        }
-      }, 12000);
-    });
-    if (!autoplay) return;
-    // YouTube can ignore the autoplay flag; ask explicitly, then make sure the video really starts.
+    } catch (e) {
+      if (e instanceof VideoBlocked) throw e;
+      this.toPage(); // embedded player unreachable: the page may still work
+      return;
+    }
+    if (!autoplay || this.mode !== 'embed') return;
     this.send('playVideo');
   }
+
+  /** Switch the current video to YouTube's own page, at the same moment. */
+  private toPage() {
+    if (this.mode === 'page' || !this.track) return;
+    const t = this.track;
+    const at = this.time();
+    const play = this.wantPlay || this.info.state === 1;
+    this.frame = null;
+    this.host.replaceChildren();
+    this.mode = 'page';
+    this.loadPage(t, play, at).catch((e) => {
+      if (this.track === t) controller.fail((e as Error).message, { video: true });
+    });
+  }
+
+  private loadPage(t: LibraryTrack, autoplay: boolean, startAt: number) {
+    const v = document.createElement('webview') as Webview;
+    v.setAttribute('partition', 'persist:youtube');
+    v.setAttribute('webpreferences', 'contextIsolation=yes,sandbox=yes');
+    v.className = 'yt-page';
+    v.src = `https://www.youtube.com/watch?v=${t.youtubeId}${startAt > 1 ? `&t=${Math.floor(startAt)}s` : ''}`;
+    this.view = v;
+    this.host.replaceChildren(v);
+    this.info = { ...this.info, state: -1, at: performance.now() };
+    useStore.setState({ buffering: true });
+    // only YouTube's own page gets the video-only look; Google's check pages stay as they are
+    v.addEventListener('dom-ready', () => /^https:\/\/www\.youtube\.com\/watch/.test(v.getURL()) && void v.insertCSS(PAGE_CSS).catch(() => undefined));
+    let check = false;
+    v.addEventListener('did-navigate', (e) => {
+      const url = (e as Event & { url: string }).url;
+      // YouTube can ask people to confirm they are not a robot, or to choose cookie settings:
+      // let them do it right there, then carry on.
+      check = /google\.[a-z.]+\/sorry|consent\.(youtube|google)\.|accounts\.google\./.test(url);
+      this.host.classList.toggle('interactive', check);
+      useStore.setState({ notice: check ? { text: 'YouTube wants a quick check before the video plays. Complete it on the video, then it starts.' } : null });
+    });
+    return new Promise<void>((resolve, reject) => {
+      v.addEventListener('did-fail-load', (e) => {
+        const f = e as Event & { errorCode: number; isMainFrame: boolean };
+        if (!f.isMainFrame || f.errorCode === -3 || this.view !== v) return; // -3: replaced by a newer navigation
+        clearInterval(this.poll);
+        if (!started) reject(new VideoBlocked('YouTube could not be reached.'));
+        else controller.fail('YouTube could not be reached.', { video: true });
+      });
+      let started = false;
+      let unavailable = 0;
+      const begin = performance.now();
+      this.poll = window.setInterval(async () => {
+        if (this.view !== v) return clearInterval(this.poll);
+        const st = (await v.executeJavaScript(PAGE_STATE).catch(() => null)) as PageState | null;
+        if (this.view !== v) return;
+        if (st?.check) {
+          // YouTube asks the person to prove they are not a robot (or to pick cookie settings)
+          if (!check) {
+            check = true;
+            this.host.classList.add('interactive');
+            useStore.setState({ buffering: false, notice: { text: 'YouTube wants a quick check before the video plays. Complete it on the video, then it starts.' } });
+          }
+          if (performance.now() - begin > 180_000) {
+            clearInterval(this.poll);
+            reject(new VideoBlocked('The YouTube check was not completed.'));
+          }
+          return;
+        }
+        if (check && st) {
+          check = false;
+          useStore.setState({ notice: null });
+        }
+        if (!st) {
+          if (!check && performance.now() - begin > 25_000) {
+            clearInterval(this.poll);
+            reject(new VideoBlocked('YouTube did not load the video.'));
+          }
+          return;
+        }
+        if (st.status && st.status !== 'OK') {
+          // give a just-navigated page a moment before trusting an error
+          if (++unavailable >= 3) {
+            clearInterval(this.poll);
+            const msg = st.status === 'LOGIN_REQUIRED' ? 'YouTube asks to sign in for this video (Settings → Connections → YouTube).' : st.reason || 'This video is unavailable.';
+            if (!started) reject(new VideoBlocked(msg));
+            else controller.fail(msg, { video: true });
+          }
+          return;
+        }
+        if (!started) {
+          started = true;
+          if (autoplay) {
+            // the page loaded but the video never really starts (and no ad is showing): use the audio
+            const since = performance.now();
+            const watch = window.setInterval(() => {
+              if (this.view !== v) return clearInterval(watch);
+              if (this.info.state === 1 || this.info.state === 0 || !this.wantPlay) return clearInterval(watch);
+              if (!useStore.getState().adShowing && performance.now() - since > 20_000) {
+                clearInterval(watch);
+                controller.fail('The video did not start.', { video: true });
+              }
+            }, 1000);
+          }
+          this.send('setPlaybackQualityRange', ['highres', 'highres']);
+          this.applyVol();
+          if (autoplay) this.send('playVideo');
+          else this.send('pauseVideo');
+          resolve();
+        }
+        this.host.classList.toggle('interactive', check || st.ad); // an ad's own Skip button stays clickable
+        useStore.setState({ adShowing: st.ad });
+        if (st.ad) {
+          // the song's clock waits while YouTube shows an ad
+          this.info.at = performance.now();
+          if (this.info.state === 1) this.info.state = 3;
+          useStore.setState({ buffering: true, playing: false });
+          return;
+        }
+        this.info.currentTime = st.t;
+        this.info.at = performance.now();
+        if (st.d > 0) this.info.duration = st.d;
+        this.info.loaded = st.loaded;
+        this.state(st.s);
+      }, 400);
+    });
+  }
+
+  private applyVol() {
+    this.send('setVolume', [Math.round(this.vol.v * 100)]);
+    this.send(this.vol.muted ? 'mute' : 'unMute');
+  }
   play() {
+    this.wantPlay = true;
     this.send('playVideo');
   }
   pause() {
+    this.wantPlay = false;
     this.send('pauseVideo');
   }
   seek(t: number) {
@@ -338,8 +518,8 @@ class YouTubeBackend implements Backend {
     this.info.at = performance.now();
   }
   setVolume(v: number, muted: boolean) {
-    this.send('setVolume', [Math.round(v * 100)]);
-    this.send(muted ? 'mute' : 'unMute');
+    this.vol = { v, muted };
+    this.applyVol();
   }
   time() {
     const live = this.info.state === 1 ? (performance.now() - this.info.at) / 1000 : 0;
@@ -352,9 +532,15 @@ class YouTubeBackend implements Backend {
     return this.info.loaded * this.info.duration;
   }
   stop() {
+    clearInterval(this.poll);
     this.ready = null;
     this.frame = null;
+    this.view = null;
+    this.track = null;
+    this.mode = 'embed';
+    this.host.classList.remove('interactive');
     this.host.replaceChildren();
+    useStore.setState({ adShowing: false });
   }
 }
 

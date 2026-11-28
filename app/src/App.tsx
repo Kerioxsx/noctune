@@ -189,8 +189,8 @@ export function App() {
       }
       if (performance.now() - started > 12000) {
         // a video that never started falls back to the song's audio; anything else gets the usual recovery
-        if (controller.active.kind === 'youtube') controller.fail('The video did not start.', { video: true });
-        else controller.fail('This is taking longer than expected. The file may be large or the network slow.');
+        // (videos have their own checks: YouTube's page may be showing an ad or a quick check)
+        if (controller.active.kind !== 'youtube') controller.fail('This is taking longer than expected. The file may be large or the network slow.');
         go('player');
         return;
       }

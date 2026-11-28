@@ -6,6 +6,7 @@ import { readJson, writeJson, dataDir } from './store';
 import * as library from './library';
 import * as providers from './providers';
 import { findLyrics, findOfficialVideo, type SongQuery } from './lookups';
+import * as youtube from './youtube';
 import { initUpdater, checkForUpdates, downloadUpdate, installUpdate, getUpdateState } from './updater';
 
 registerSchemes();
@@ -53,9 +54,12 @@ async function createWindow() {
       nodeIntegration: false,
       sandbox: true,
       autoplayPolicy: 'no-user-gesture-required',
+      // only for YouTube's page; every <webview> is checked and locked down in youtube.guardWebviews
+      webviewTag: true,
       additionalArguments: [`--noctune-version=${app.getVersion()}`],
     },
   });
+  youtube.guardWebviews(win.webContents);
   if (saved.maximized) win.maximize();
   if (saved.fullscreen) win.setFullScreen(true);
   win.once('ready-to-show', () => win?.show());
@@ -204,6 +208,9 @@ function registerIpc() {
     const sq = songQuery(q);
     return sq ? findLyrics(sq) : null;
   });
+  ipcMain.handle('youtube:status', () => youtube.signedIn());
+  ipcMain.handle('youtube:signIn', () => youtube.signIn(win));
+  ipcMain.handle('youtube:signOut', () => youtube.signOut());
   ipcMain.handle('video:lookup', async (_e, q: unknown) => {
     const sq = songQuery(q);
     return sq ? findOfficialVideo(sq) : null;
@@ -248,6 +255,7 @@ function registerIpc() {
     await fs.rm(join(dir, 'covers'), { recursive: true, force: true });
     await session.defaultSession.clearStorageData();
     await session.defaultSession.clearCache();
+    await youtube.clearAll();
     app.relaunch();
     app.exit(0);
   });
@@ -286,6 +294,7 @@ app.whenReady().then(async () => {
     }
     return null;
   });
+  await youtube.prepareSession();
   registerIpc();
   await createWindow();
   initUpdater();

@@ -10,6 +10,11 @@ contextBridge.exposeInMainWorld('noctune', {
   platform: process.platform,
   // passed by the main process, which knows the installed app's version
   version: process.argv.find((a) => a.startsWith('--noctune-version='))?.split('=')[1] ?? '',
+  youtube: {
+    status: () => invoke('youtube:status'),
+    signIn: () => invoke('youtube:signIn'),
+    signOut: () => invoke('youtube:signOut'),
+  },
   library: {
     get: () => invoke('library:get'),
     addFolder: () => invoke('library:addFolder'),

@@ -152,6 +152,7 @@ export interface BridgeAPI {
   };
   lyrics: { lookup(q: { title: string; artist: string; album?: string; duration?: number }): Promise<string | null> };
   /** official music video on YouTube, found through MusicBrainz; returns the video id */
+  youtube: { status(): Promise<boolean>; signIn(): Promise<boolean>; signOut(): Promise<void> };
   video: { lookup(q: { title: string; artist: string; album?: string; duration?: number }): Promise<string | null> };
   window: { toggleFullscreen(): Promise<boolean>; isFullscreen(): Promise<boolean>; onFullscreen(cb: (v: boolean) => void): () => void };
   openExternal(url: string): Promise<void>;

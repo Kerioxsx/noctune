@@ -104,6 +104,7 @@ function browserBridge(): BridgeAPI {
       remote: desktopOnly,
     },
     lyrics: { lookup: async () => null },
+    youtube: { status: async () => false, signIn: async () => false, signOut: async () => undefined },
     video: { lookup: async () => null },
     window: {
       toggleFullscreen: async () => {
