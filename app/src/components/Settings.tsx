@@ -161,7 +161,7 @@ function GeneralTab() {
       </Group>
       <Group title="Library">
         <Choice label="Sort albums" value={s.sort} options={[{ v: 'library', l: 'Library order' }, { v: 'title', l: 'Title' }, { v: 'artist', l: 'Artist' }, { v: 'year', l: 'Year' }, { v: 'source', l: 'Source' }]} onChange={(v) => update((x) => (x.sort = v))} />
-        <Toggle label="Show demo albums" checked={s.showDemo} onChange={(v) => update((x) => (x.showDemo = v))} />
+        <Choice label="Demo albums" value={s.demos} options={[{ v: 'auto', l: 'Until my music is added' }, { v: 'show', l: 'Always show' }, { v: 'hide', l: 'Hide' }]} onChange={(v) => update((x) => (x.demos = v))} />
         <div className="row">
           <div className="row-l">
             <span>Music folders</span>

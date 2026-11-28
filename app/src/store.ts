@@ -75,7 +75,8 @@ export interface Settings {
   focusAlways: boolean;
   eq: { enabled: boolean; preamp: number; gains: number[]; preset: string };
   keymap: Record<Action, string[]>;
-  showDemo: boolean;
+  /** demo albums: shown until your own music appears ('auto'), always, or never */
+  demos: 'auto' | 'show' | 'hide';
   clock24: boolean;
   diagnostics: boolean;
   videoLinks: Record<string, string>;
@@ -83,7 +84,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   onboarded: false,
-  settingsVersion: 3,
+  settingsVersion: 4,
   autoVideo: true,
   background: { kind: 'city', fit: 'cover', print: false, dim: 0.15 },
   effects: { enabled: true, intensity: 0.6, vhs: true, scanlineStrength: 0.6, halftone: true, scanlines: true, noise: true, glitches: true, chroma: true, vignette: true },
@@ -102,7 +103,7 @@ export const DEFAULT_SETTINGS: Settings = {
   focusAlways: false,
   eq: { enabled: false, preamp: 0, gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], preset: 'Flat' },
   keymap: DEFAULT_KEYMAP,
-  showDemo: true,
+  demos: 'auto',
   clock24: false,
   diagnostics: false,
   videoLinks: {},
@@ -212,7 +213,10 @@ export const useStore = create<State>((set, get) => ({
 // ------------------------------------------------------------- selectors
 export function stackItems(s: Pick<State, 'albums' | 'playlists' | 'providerPlaylists' | 'settings' | 'shelf' | 'tracks'>, shelf: Shelf = s.shelf): StackItem[] {
   if (shelf === 'albums') {
-    let albums = s.albums.filter((a) => s.settings.showDemo || a.source !== 'demo');
+    const demos = s.settings.demos;
+    const ownMusic = s.albums.some((a) => a.source !== 'demo') || s.providerPlaylists.length > 0;
+    const showDemo = demos === 'show' || (demos === 'auto' && !ownMusic);
+    let albums = s.albums.filter((a) => showDemo || a.source !== 'demo');
     const sort = s.settings.sort;
     if (sort === 'title') albums = [...albums].sort((a, b) => a.title.localeCompare(b.title));
     if (sort === 'artist') albums = [...albums].sort((a, b) => a.artist.localeCompare(b.artist) || a.title.localeCompare(b.title));
@@ -316,6 +320,13 @@ export async function boot() {
     if (!merged.keymap.nowPlaying.length) merged.keymap.nowPlaying = ['v'];
     merged.settingsVersion = 3;
   }
+  // v4: demo albums step aside on their own once your music is there
+  if ((settings.settingsVersion ?? 1) < 4) {
+    merged.demos = (settings as { showDemo?: boolean }).showDemo === false ? 'hide' : 'auto';
+    delete (merged as { showDemo?: boolean }).showDemo;
+    merged.settingsVersion = 4;
+  }
+  if (!['auto', 'show', 'hide'].includes(merged.demos)) merged.demos = 'auto';
   const tracks: Record<string, LibraryTrack> = {};
   for (const t of [...demo.tracks, ...index.tracks]) tracks[t.id] = applyLinks(t, merged);
   // Real libraries come first; the demo shelf sits after them.

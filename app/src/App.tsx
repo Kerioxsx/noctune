@@ -40,7 +40,7 @@ export function App() {
   const reduced = useReducedMotion();
   const s = useStore();
   const { screen, shelf, sel, settings } = s;
-  const items = useMemo(() => stackItems(s, shelf), [s.albums, s.playlists, s.providerPlaylists, s.settings.showDemo, s.settings.sort, shelf, s.tracks]);
+  const items = useMemo(() => stackItems(s, shelf), [s.albums, s.playlists, s.providerPlaylists, s.settings.demos, s.settings.sort, shelf, s.tracks]);
   const selIndex = Math.min(sel[shelf], Math.max(0, items.length - 1));
   const front: StackItem | undefined = items[selIndex];
   const nowTrack = currentTrack(s);
