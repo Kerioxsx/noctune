@@ -36,7 +36,6 @@ contextBridge.exposeInMainWorld('noctune', {
     library: (id: string) => invoke('providers:library', id),
     playlistTracks: (id: string) => invoke('providers:playlistTracks', id),
     remote: (cmd: unknown) => invoke('providers:remote', cmd),
-    spotifyToken: () => invoke('providers:spotifyToken'),
   },
   lyrics: { lookup: (q: unknown) => invoke('lyrics:lookup', q) },
   window: {

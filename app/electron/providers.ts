@@ -263,7 +263,7 @@ async function appleCheck(): Promise<void> {
 // ------------------------------------------------------------- public API
 export async function status(): Promise<ProviderStatus[]> {
   const c = await cfg();
-  const secure = secureStorageAvailable();
+  const secure = await secureStorageAvailable();
   const sp = await loadTokens('spotify');
   const sc = await loadTokens('soundcloud');
   const apple = await getSecret('apple.developerToken');
@@ -303,7 +303,7 @@ export async function configure(id: ProviderId, values: Record<string, string>) 
 }
 
 export async function connect(id: ProviderId) {
-  if (!secureStorageAvailable()) throw new Error('Secure credential storage is unavailable, so Noctune will not store sign-in tokens. On Linux, install and unlock a keyring (GNOME Keyring or KWallet).');
+  if (!(await secureStorageAvailable())) throw new Error('Secure credential storage is unavailable, so Noctune will not store sign-in tokens. On Linux, install and unlock a keyring (GNOME Keyring or KWallet).');
   const c = await cfg();
   if (id === 'spotify') {
     const clientId = c.spotify?.clientId;
@@ -338,10 +338,6 @@ export async function playlistTracks(id: string): Promise<LibraryTrack[]> {
 }
 
 /** Spotify Connect remote control. */
-export async function spotifyAccessToken(): Promise<string> {
-  return spotifyToken();
-}
-
 export async function remote(cmd: { op: 'play'; uris?: string[]; context?: string; offset?: number; positionMs?: number; deviceId?: string } | { op: 'pause' | 'resume' | 'state' | 'devices' } | { op: 'seek'; ms: number } | { op: 'volume'; pct: number } | { op: 'repeat'; mode: 'off' | 'context' | 'track' }): Promise<RemoteState | null> {
   switch (cmd.op) {
     case 'play': {

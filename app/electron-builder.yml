@@ -1,5 +1,5 @@
 appId: app.noctune.player
-electronVersion: 33.2.1
+electronVersion: 45.5.0
 # Renderer and main are fully bundled, so no node_modules ship in the app.
 npmRebuild: false
 productName: Noctune
@@ -13,6 +13,14 @@ files:
   - package.json
 asarUnpack:
   - dist/demo/**
+# Electron fuses: turn off ways to reuse the installed app as a general Node runtime or debugger.
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
 mac:
   category: public.app-category.music
   target:

@@ -202,107 +202,143 @@ class SpotifyBackend implements Backend {
 }
 
 // ---------------------------------------------------------------- YouTube
-interface YTPlayer {
-  playVideo(): void;
-  pauseVideo(): void;
-  seekTo(s: number, allow: boolean): void;
-  setVolume(v: number): void;
-  mute(): void;
-  unMute(): void;
-  getCurrentTime(): number;
-  getDuration(): number;
-  getVideoLoadedFraction(): number;
-  loadVideoById(o: { videoId: string; startSeconds?: number }): void;
-  cueVideoById(o: { videoId: string; startSeconds?: number }): void;
-  destroy(): void;
-}
-declare global {
-  interface Window {
-    YT?: { Player: new (el: HTMLElement, o: unknown) => YTPlayer; PlayerState: Record<string, number> };
-    onYouTubeIframeAPIReady?: () => void;
-  }
-}
-
 class VideoBlocked extends Error {}
 
-let ytReady: Promise<void> | null = null;
-function loadYT() {
-  ytReady ??= new Promise((res, rej) => {
-    if (window.YT?.Player) return res();
-    const s = document.createElement('script');
-    s.src = 'https://www.youtube.com/iframe_api';
-    s.onerror = () => rej(new Error('Could not reach YouTube.'));
-    window.onYouTubeIframeAPIReady = () => res();
-    document.head.appendChild(s);
-  });
-  return ytReady;
-}
+const YT_ORIGIN = 'https://www.youtube-nocookie.com';
+const YT_ERRORS: Record<number, string> = {
+  2: 'This YouTube link is not valid.',
+  5: 'This video cannot play in an embedded player.',
+  100: 'This video is unavailable.',
+  101: 'The owner does not allow this video to play in other apps.',
+  150: 'The owner does not allow this video to play in other apps.',
+  153: 'YouTube refused to load the player here.',
+};
 
-/** Official videos play inside YouTube's own embedded player, as its terms require. */
+/**
+ * Official videos play inside YouTube's own embedded player, as its terms require.
+ * YouTube's code stays inside its cross-origin iframe: no YouTube script runs in
+ * the app's window. The player is driven through YouTube's documented postMessage
+ * commands, and only messages from that iframe are accepted.
+ */
 class YouTubeBackend implements Backend {
   kind = 'youtube' as const;
   caps: Capabilities = { seek: true, volume: true, eq: false, repeatOne: true, video: true };
   host: HTMLDivElement;
-  private p: YTPlayer | null = null;
+  private frame: HTMLIFrameElement | null = null;
+  private info = { currentTime: 0, duration: 0, loaded: 0, at: performance.now(), state: -1 };
+  private onMsg = (e: MessageEvent) => this.handle(e);
 
   constructor() {
     this.host = document.createElement('div');
     this.host.className = 'yt-host';
+    window.addEventListener('message', this.onMsg);
   }
+
+  private send(func: string, args: unknown[] = []) {
+    this.frame?.contentWindow?.postMessage(JSON.stringify({ event: 'command', func, args }), YT_ORIGIN);
+  }
+
+  private ready: { res: () => void; rej: (e: Error) => void } | null = null;
+
+  private handle(e: MessageEvent) {
+    if (e.origin !== YT_ORIGIN || !this.frame || e.source !== this.frame.contentWindow) return;
+    let d: { event?: string; info?: unknown };
+    try {
+      d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+    } catch {
+      return;
+    }
+    if (d.event === 'onReady' || d.event === 'initialDelivery') {
+      this.ready?.res();
+      this.ready = null;
+    }
+    if (d.event === 'infoDelivery' && d.info && typeof d.info === 'object') {
+      const i = d.info as { currentTime?: number; duration?: number; videoLoadedFraction?: number; playerState?: number };
+      if (typeof i.currentTime === 'number') {
+        this.info.currentTime = i.currentTime;
+        this.info.at = performance.now();
+      }
+      if (typeof i.duration === 'number' && i.duration > 0) this.info.duration = i.duration;
+      if (typeof i.videoLoadedFraction === 'number') this.info.loaded = i.videoLoadedFraction;
+      if (typeof i.playerState === 'number') this.state(i.playerState);
+    }
+    if (d.event === 'onStateChange' && typeof d.info === 'number') this.state(d.info);
+    if (d.event === 'onError') {
+      const msg = YT_ERRORS[Number(d.info)] ?? 'The video could not be played.';
+      if (this.ready) {
+        this.ready.rej(new VideoBlocked(msg));
+        this.ready = null;
+      }
+      controller.fail(msg, { video: true });
+    }
+  }
+
+  private state(s: number) {
+    // -1 unstarted, 0 ended, 1 playing, 2 paused, 3 buffering, 5 cued
+    if (s === this.info.state) return;
+    this.info.state = s;
+    this.info.at = performance.now();
+    if (s === 0) controller.handleEnded();
+    useStore.setState({ playing: s === 1, buffering: s === 3 });
+  }
+
   async load(t: LibraryTrack, autoplay: boolean, startAt: number) {
-    if (!t.youtubeId) throw new Error('No official video linked.');
-    await loadYT();
-    const mount = document.createElement('div');
-    this.host.replaceChildren(mount);
-    this.p?.destroy();
+    if (!t.youtubeId || !/^[\w-]{11}$/.test(t.youtubeId)) throw new Error('No valid official video linked.');
+    this.stop();
+    this.info = { currentTime: startAt, duration: t.duration ?? 0, loaded: 0, at: performance.now(), state: -1 };
+    const f = document.createElement('iframe');
+    const q = new URLSearchParams({ enablejsapi: '1', controls: '0', rel: '0', playsinline: '1', iv_load_policy: '3', autoplay: autoplay ? '1' : '0', start: String(Math.floor(startAt)) });
+    f.src = `${YT_ORIGIN}/embed/${t.youtubeId}?${q}`;
+    f.allow = 'autoplay; encrypted-media; fullscreen';
+    f.referrerPolicy = 'strict-origin-when-cross-origin';
+    f.title = 'YouTube video player';
+    this.frame = f;
+    this.host.replaceChildren(f);
     await new Promise<void>((res, rej) => {
-      this.p = new window.YT!.Player(mount, {
-        videoId: t.youtubeId,
-        host: 'https://www.youtube-nocookie.com',
-        playerVars: { autoplay: autoplay ? 1 : 0, controls: 0, rel: 0, modestbranding: 1, playsinline: 1, start: Math.floor(startAt), iv_load_policy: 3, origin: location.origin.startsWith('http') ? location.origin : undefined },
-        events: {
-          onReady: () => res(),
-          onStateChange: (e: { data: number }) => {
-            const S = window.YT!.PlayerState;
-            if (e.data === S.ENDED) controller.handleEnded();
-            useStore.setState({ playing: e.data === S.PLAYING, buffering: e.data === S.BUFFERING });
-          },
-          onError: (e: { data: number }) => {
-            const msg = e.data === 101 || e.data === 150 ? 'The owner does not allow this video to play in other apps.' : e.data === 100 ? 'This video is unavailable.' : 'The video could not be played.';
-            controller.fail(msg, { video: true });
-            rej(new VideoBlocked(msg));
-          },
-        },
+      this.ready = { res, rej };
+      const listen = () => f.contentWindow?.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), YT_ORIGIN);
+      f.addEventListener('load', () => {
+        listen();
+        // the player starts listening a moment after load; ask a few times
+        let n = 0;
+        const iv = window.setInterval(() => (this.ready && n++ < 10 ? listen() : clearInterval(iv)), 300);
       });
+      window.setTimeout(() => {
+        if (this.ready) {
+          this.ready = null;
+          rej(new Error('YouTube did not respond. Check the internet connection.'));
+        }
+      }, 12000);
     });
   }
   play() {
-    this.p?.playVideo();
+    this.send('playVideo');
   }
   pause() {
-    this.p?.pauseVideo();
+    this.send('pauseVideo');
   }
   seek(t: number) {
-    this.p?.seekTo(t, true);
+    this.send('seekTo', [t, true]);
+    this.info.currentTime = t;
+    this.info.at = performance.now();
   }
   setVolume(v: number, muted: boolean) {
-    if (!this.p) return;
-    this.p.setVolume(Math.round(v * 100));
-    if (muted) this.p.mute();
-    else this.p.unMute();
+    this.send('setVolume', [Math.round(v * 100)]);
+    this.send(muted ? 'mute' : 'unMute');
   }
   time() {
-    return this.p?.getCurrentTime?.() ?? 0;
+    const live = this.info.state === 1 ? (performance.now() - this.info.at) / 1000 : 0;
+    return Math.min(this.info.currentTime + live, this.info.duration || Infinity);
   }
   duration() {
-    return this.p?.getDuration?.() ?? 0;
+    return this.info.duration;
   }
   buffered() {
-    return (this.p?.getVideoLoadedFraction?.() ?? 0) * this.duration();
+    return this.info.loaded * this.info.duration;
   }
   stop() {
-    this.p?.destroy();
-    this.p = null;
+    this.ready = null;
+    this.frame = null;
     this.host.replaceChildren();
   }
 }
@@ -334,117 +370,6 @@ async function spotifyPlay(uris: string[], positionMs = 0, deviceId?: string) {
   const dev = devices.find((d) => d.is_active) ?? devices[0];
   if (!dev) throw new Error('Spotify did not open. Install or open the Spotify app, then press play.');
   await bridge.providers.remote({ op: 'play', uris, positionMs, deviceId: dev.id });
-}
-
-// --------------------------------------------- Spotify inside the app (SDK)
-interface SdkState { paused: boolean; position: number; duration: number; timestamp: number }
-interface SdkPlayer {
-  connect(): Promise<boolean>;
-  disconnect(): void;
-  addListener(ev: string, cb: (x: never) => void): void;
-  resume(): Promise<void>;
-  pause(): Promise<void>;
-  seek(ms: number): Promise<void>;
-  setVolume(v: number): Promise<void>;
-  activateElement?(): Promise<void>;
-}
-declare global {
-  interface Window {
-    Spotify?: { Player: new (o: { name: string; getOAuthToken: (cb: (t: string) => void) => void; volume: number }) => SdkPlayer };
-    onSpotifyWebPlaybackSDKReady?: () => void;
-  }
-}
-
-/** Widevine is what Spotify's in-browser player needs; stock Electron builds do not ship it. */
-async function hasWidevine() {
-  try {
-    await navigator.requestMediaKeySystemAccess('com.widevine.alpha', [{ initDataTypes: ['cenc'], audioCapabilities: [{ contentType: 'audio/mp4; codecs="mp4a.40.2"' }] }]);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** Spotify audio played by Noctune itself, as a Spotify Connect device named "Noctune" (Premium). */
-class SpotifySdkBackend implements Backend {
-  kind = 'spotify' as const;
-  caps: Capabilities = { seek: true, volume: true, eq: false, repeatOne: true, video: false };
-  private player: SdkPlayer | null = null;
-  private deviceId = '';
-  private st: SdkState = { paused: true, position: 0, duration: 0, timestamp: performance.now() };
-  private lastPos = 0;
-  private ready: Promise<boolean> | null = null;
-
-  /** Resolves true once the in-app player is connected; false where it cannot run. */
-  init(): Promise<boolean> {
-    this.ready ??= (async () => {
-      if (!(await hasWidevine())) return false;
-      try {
-        await new Promise<void>((res, rej) => {
-          if (window.Spotify) return res();
-          window.onSpotifyWebPlaybackSDKReady = () => res();
-          const sc = document.createElement('script');
-          sc.src = 'https://sdk.scdn.co/spotify-player.js';
-          sc.onerror = () => rej(new Error('sdk'));
-          document.head.appendChild(sc);
-        });
-        const p = new window.Spotify!.Player({ name: 'Noctune', volume: useStore.getState().settings.volume, getOAuthToken: (cb) => void bridge.providers.spotifyToken().then(cb) });
-        const id = await new Promise<string>((res, rej) => {
-          const t = setTimeout(() => rej(new Error('timeout')), 10000);
-          p.addListener('ready', ((d: { device_id: string }) => (clearTimeout(t), res(d.device_id))) as never);
-          for (const ev of ['initialization_error', 'authentication_error', 'account_error']) p.addListener(ev, (() => (clearTimeout(t), rej(new Error(ev)))) as never);
-          void p.connect();
-        });
-        p.addListener('player_state_changed', ((s: { paused: boolean; position: number; duration: number } | null) => {
-          if (!s) return;
-          const wasNearEnd = !this.st.paused && this.st.duration > 0 && this.lastPos > this.st.duration - 2500;
-          this.st = { paused: s.paused, position: s.position, duration: s.duration, timestamp: performance.now() };
-          this.lastPos = s.position;
-          useStore.setState({ playing: !s.paused, buffering: false });
-          if (s.paused && s.position === 0 && wasNearEnd) controller.handleEnded();
-        }) as never);
-        p.addListener('playback_error', ((e: { message: string }) => controller.fail(`Spotify: ${e.message}`)) as never);
-        this.player = p;
-        this.deviceId = id;
-        return true;
-      } catch {
-        return false;
-      }
-    })();
-    return this.ready;
-  }
-  async load(t: LibraryTrack, autoplay: boolean, startAt: number) {
-    if (!t.providerUri) throw new Error('This Spotify item has no playable reference.');
-    await this.player?.activateElement?.();
-    this.st = { paused: !autoplay, position: startAt * 1000, duration: (t.duration ?? 0) * 1000, timestamp: performance.now() };
-    if (autoplay) await bridge.providers.remote({ op: 'play', uris: [t.providerUri], positionMs: Math.round(startAt * 1000), deviceId: this.deviceId });
-  }
-  play() {
-    void this.player?.resume();
-  }
-  pause() {
-    void this.player?.pause();
-  }
-  seek(t: number) {
-    void this.player?.seek(Math.round(t * 1000));
-    this.st = { ...this.st, position: t * 1000, timestamp: performance.now() };
-  }
-  setVolume(v: number, muted: boolean) {
-    void this.player?.setVolume(muted ? 0 : v * v);
-  }
-  time() {
-    const p = this.st.position + (this.st.paused ? 0 : performance.now() - this.st.timestamp);
-    return Math.min(p, this.st.duration || p) / 1000;
-  }
-  duration() {
-    return this.st.duration / 1000;
-  }
-  buffered() {
-    return this.duration();
-  }
-  stop() {
-    void this.player?.pause();
-  }
 }
 
 // ------------------------------------------------- the same song elsewhere
@@ -479,8 +404,6 @@ class Controller {
   media = new MediaBackend();
   youtube = new YouTubeBackend();
   private spotify = new SpotifyBackend();
-  private spotifySdk = new SpotifySdkBackend();
-  private sdkOk = false;
   active: Backend = this.media;
   private loadToken = 0;
   /** what is actually playing for the current queue item (a fallback copy may stand in for it) */
@@ -491,7 +414,7 @@ class Controller {
 
   backendFor(t: LibraryTrack): Backend {
     if (t.youtubeId) return this.youtube;
-    if (t.source === 'spotify') return this.sdkOk ? this.spotifySdk : this.spotify;
+    if (t.source === 'spotify') return this.spotify;
     return this.media;
   }
 
@@ -527,7 +450,6 @@ class Controller {
     const token = ++this.loadToken;
     this.tried.add(t.id + (t.youtubeId ? ':video' : ''));
     this.playing = t;
-    if (t.source === 'spotify' && !t.youtubeId && !this.sdkOk) this.sdkOk = await this.spotifySdk.init();
     const next = this.backendFor(t);
     if (next !== this.active) this.active.stop();
     this.active = next;

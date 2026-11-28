@@ -36,15 +36,17 @@ export function writeJson(name: string, value: unknown): Promise<void> {
 type SecretFile = Record<string, string>;
 const SECRET_FILE = 'secrets';
 
-export function secureStorageAvailable() {
-  return safeStorage.isEncryptionAvailable();
+/** Uses the async check where Electron has it (the sync one is deprecated from Electron 45). */
+export async function secureStorageAvailable(): Promise<boolean> {
+  const ss = safeStorage as typeof safeStorage & { isAsyncEncryptionAvailable?: () => Promise<boolean> };
+  return ss.isAsyncEncryptionAvailable ? ss.isAsyncEncryptionAvailable() : ss.isEncryptionAvailable();
 }
 
 export async function setSecret(key: string, value: string | null) {
   const all = await readJson<SecretFile>(SECRET_FILE, {});
   if (value === null) delete all[key];
   else {
-    if (!safeStorage.isEncryptionAvailable()) throw new Error('Secure credential storage is not available on this system.');
+    if (!(await secureStorageAvailable())) throw new Error('Secure credential storage is not available on this system.');
     all[key] = safeStorage.encryptString(value).toString('base64');
   }
   await writeJson(SECRET_FILE, all);
@@ -53,7 +55,7 @@ export async function setSecret(key: string, value: string | null) {
 export async function getSecret(key: string): Promise<string | null> {
   const all = await readJson<SecretFile>(SECRET_FILE, {});
   const v = all[key];
-  if (!v || !safeStorage.isEncryptionAvailable()) return null;
+  if (!v || !(await secureStorageAvailable())) return null;
   try {
     return safeStorage.decryptString(Buffer.from(v, 'base64'));
   } catch {

@@ -138,8 +138,6 @@ export interface BridgeAPI {
     library(id: ProviderId): Promise<ProviderLibrary>;
     playlistTracks(id: string): Promise<LibraryTrack[]>;
     remote(cmd: unknown): Promise<RemoteState | null>;
-    /** short-lived access token for Spotify's in-app player; the refresh token never leaves the main process */
-    spotifyToken(): Promise<string>;
   };
   lyrics: { lookup(q: { title: string; artist: string; album?: string; duration?: number }): Promise<string | null> };
   window: { toggleFullscreen(): Promise<boolean>; isFullscreen(): Promise<boolean>; onFullscreen(cb: (v: boolean) => void): () => void };

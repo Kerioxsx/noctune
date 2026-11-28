@@ -101,7 +101,6 @@ function browserBridge(): BridgeAPI {
       library: async () => ({ tracks: [], albums: [], playlists: [] }),
       playlistTracks: async () => [],
       remote: desktopOnly,
-      spotifyToken: desktopOnly,
     },
     lyrics: { lookup: async () => null },
     window: {

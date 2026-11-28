@@ -9,10 +9,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Least privilege: read-only by default; each job that writes asks for exactly that.
 permissions:
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
 
 jobs:
   build:
@@ -72,6 +71,8 @@ jobs:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -82,7 +83,8 @@ jobs:
       - id: version
         run: echo "v=$(node -p "require('./app/package.json').version")" >> "$GITHUB_OUTPUT"
       - run: ls -la installers
-      - uses: softprops/action-gh-release@v2
+      # third-party action pinned to an exact commit (v2)
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
         with:
           tag_name: v${{ steps.version.outputs.v }}
           name: Noctune ${{ steps.version.outputs.v }}
@@ -126,6 +128,9 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: website
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}

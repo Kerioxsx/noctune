@@ -186,7 +186,6 @@ function registerIpc() {
   ipcMain.handle('providers:library', (_e, id) => providers.library(id));
   ipcMain.handle('providers:playlistTracks', (_e, id) => providers.playlistTracks(id));
   ipcMain.handle('providers:remote', (_e, cmd) => providers.remote(cmd));
-  ipcMain.handle('providers:spotifyToken', () => providers.spotifyAccessToken());
 
   // Community lyrics (LRCLIB). Only called when the user turns it on in Settings.
   ipcMain.handle('lyrics:lookup', async (_e, q: { title: string; artist: string; album?: string; duration?: number }) => {
@@ -221,6 +220,17 @@ function registerIpc() {
 }
 
 app.whenReady().then(async () => {
+  // Electron grants web permissions (microphone, camera, location, notifications...) by default.
+  // Noctune needs none of them, so refuse everything except going full screen.
+  const ses = session.defaultSession;
+  ses.setPermissionRequestHandler((_wc, permission, cb) => cb(permission === 'fullscreen'));
+  ses.setPermissionCheckHandler((_wc, permission) => permission === 'fullscreen');
+  // YouTube refuses embeds that arrive without a referrer, which a local app page never sends.
+  // Identify the embed as coming from Noctune's website.
+  ses.webRequest.onBeforeSendHeaders({ urls: ['https://www.youtube-nocookie.com/embed/*'] }, (details, cb) => {
+    cb({ requestHeaders: { ...details.requestHeaders, Referer: 'https://kerioxsx.github.io/noctune/' } });
+  });
+
   // Re-allow paths the user added in earlier sessions.
   const cfg = await library.getConfig();
   cfg.folders.forEach(allowRoot);
