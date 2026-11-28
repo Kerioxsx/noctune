@@ -122,6 +122,13 @@ function browserBridge(): BridgeAPI {
       window.open(url, '_blank', 'noopener');
     },
     clearCache: async () => undefined,
+    updates: {
+      state: async () => ({ status: 'idle' as const }),
+      check: async () => ({ status: 'none' as const }),
+      download: async () => undefined,
+      install: async () => undefined,
+      onState: () => () => undefined,
+    },
     deleteAllData: async () => {
       try {
         Object.keys(localStorage).filter((k) => k.startsWith('noctune:')).forEach((k) => localStorage.removeItem(k));

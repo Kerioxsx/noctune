@@ -198,6 +198,9 @@ class SpotifyBackend implements Backend {
   }
   stop() {
     clearInterval(this.poll);
+    // switching to a video or a local file: Spotify must not keep playing underneath
+    if (this.state.playing) void bridge.providers.remote({ op: 'pause' }).catch(() => undefined);
+    this.state.playing = false;
   }
 }
 
@@ -505,7 +508,7 @@ class Controller {
         // Slow lookup: start the song now, and switch to the video at the same moment if it turns up.
         const song = t;
         void lookup.then((late) => {
-          if (!late || mine !== this.indexToken || this.active.kind !== 'media' || this.playing?.id !== song.id) return;
+          if (!late || mine !== this.indexToken || (this.active.kind !== 'media' && this.active.kind !== 'spotify') || this.playing?.id !== song.id) return;
           const withVideo = { ...song, youtubeId: late };
           const st = useStore.getState();
           useStore.setState({ tracks: { ...st.tracks, [song.id]: withVideo } });

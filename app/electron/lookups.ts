@@ -19,15 +19,43 @@ export interface SongQuery {
 }
 
 type Cache<T> = Record<string, { v: T | null; at: number }>;
-const key = (q: SongQuery) => `${q.artist.toLowerCase().trim()}::${q.title.toLowerCase().trim()}`;
+// v2: queries are cleaned first (main artist, no "Remastered"/"feat." tails), so earlier misses are retried
+const key = (q: SongQuery) => `v2::${q.artist.toLowerCase().trim()}::${q.title.toLowerCase().trim()}`;
 
-async function cached<T>(file: string, q: SongQuery, fetcher: () => Promise<T | null>): Promise<T | null> {
+/** First credited artist: "A, B", "A & B", "A feat. B", "A x B" all become "A". */
+export function mainArtist(artist: string) {
+  return artist.split(/\s*(?:,|;|\s&\s|\sfeat\.?\s|\sft\.?\s|\sfeaturing\s|\swith\s|\sx\s|\s\/\s)\s*/i)[0].trim() || artist.trim();
+}
+
+/** Title without version tails streaming services add: "Song - Remastered 2011", "Song (feat. X)", "Song - Radio Edit". */
+export function cleanTitle(title: string) {
+  return (
+    title
+      .replace(/\s*[([](?:feat|ft|with)\.?\s[^)\]]*[)\]]/gi, '')
+      .replace(/\s+-\s+(?:.*\b(?:remaster(?:ed)?|version|edit|mix|live|mono|stereo|deluxe|bonus|single|from)\b.*)$/i, '')
+      .replace(/\s*[([](?:.*\b(?:remaster(?:ed)?|radio edit|mono|stereo|deluxe|bonus track|single version|album version)\b.*)[)\]]/gi, '')
+      .trim() || title.trim()
+  );
+}
+
+const clean = (q: SongQuery): SongQuery => ({ ...q, title: cleanTitle(q.title), artist: q.artist.trim() });
+
+/** Try the artist as credited, then only the first name ("Bad Bunny, Jhay Cortez" → "Bad Bunny"). Band names like "Simon & Garfunkel" work on the first try. */
+async function eachArtist<T>(q: SongQuery, find: (q: SongQuery) => Promise<T | null>): Promise<T | null> {
+  const first = await find(q);
+  if (first) return first;
+  const main = mainArtist(q.artist);
+  return main !== q.artist ? find({ ...q, artist: main }) : null;
+}
+
+async function cached<T>(file: string, q: SongQuery, fetcher: (q: SongQuery) => Promise<T | null>): Promise<T | null> {
+  q = clean(q);
   const cache = await readJson<Cache<T>>(file, {});
   const hit = cache[key(q)];
   if (hit && (hit.v !== null || Date.now() - hit.at < MISS_TTL)) return hit.v;
   let v: T | null;
   try {
-    v = await fetcher();
+    v = await fetcher(q);
   } catch {
     return hit?.v ?? null; // offline or service down: keep what we had, do not cache the failure
   }
@@ -49,8 +77,8 @@ const words = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/
 // ------------------------------------------------------------------ lyrics
 type LrcLib = { trackName: string; artistName: string; duration: number; syncedLyrics: string | null; plainLyrics: string | null; instrumental?: boolean };
 
-export function findLyrics(q: SongQuery): Promise<string | null> {
-  return cached<string>('lyrics-cache', q, async () => {
+export function findLyrics(raw: SongQuery): Promise<string | null> {
+  return cached<string>('lyrics-cache', raw, (cq) => eachArtist(cq, async (q) => {
     // exact match first
     const u = new URL('https://lrclib.net/api/get');
     u.searchParams.set('track_name', q.title);
@@ -69,8 +97,16 @@ export function findLyrics(q: SongQuery): Promise<string | null> {
     const ok = list.filter((x) => (x.syncedLyrics || x.plainLyrics) && words(x.trackName).includes(t) && (words(x.artistName).includes(a) || a.includes(words(x.artistName))));
     ok.sort((x, y) => Number(!x.syncedLyrics) - Number(!y.syncedLyrics) || Math.abs((x.duration ?? 0) - (q.duration ?? 0)) - Math.abs((y.duration ?? 0) - (q.duration ?? 0)));
     const best = ok.find((x) => !q.duration || !x.duration || Math.abs(x.duration - q.duration) < 15);
-    return best ? best.syncedLyrics ?? best.plainLyrics : null;
-  });
+    if (best) return best.syncedLyrics ?? best.plainLyrics;
+    // last try: free-text search, accepted only when title, an artist name and the length all agree
+    const f = new URL('https://lrclib.net/api/search');
+    f.searchParams.set('q', `${q.artist} ${q.title}`);
+    const loose = ((await getJson<LrcLib[]>(f.toString())) ?? []).filter(
+      (x) => (x.syncedLyrics || x.plainLyrics) && words(x.trackName) === t && (words(x.artistName).includes(a) || a.includes(words(x.artistName))) && (!q.duration || !x.duration || Math.abs(x.duration - q.duration) < 8),
+    );
+    loose.sort((x, y) => Number(!x.syncedLyrics) - Number(!y.syncedLyrics));
+    return loose[0] ? loose[0].syncedLyrics ?? loose[0].plainLyrics : null;
+  }));
 }
 
 // ----------------------------------------------------- official music videos
@@ -97,8 +133,8 @@ function mb<T>(path: string): Promise<T | null> {
 const youtubeId = (url: string) => /(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]{11})/.exec(url)?.[1] ?? null;
 const lucene = (s: string) => s.replace(/([+\-&|!(){}[\]^"~*?:\\/])/g, '\\$1');
 
-export function findOfficialVideo(q: SongQuery): Promise<string | null> {
-  return cached<string>('video-cache', q, async () => {
+export function findOfficialVideo(raw: SongQuery): Promise<string | null> {
+  return cached<string>('video-cache', raw, (cq) => eachArtist(cq, async (q) => {
     const query = `recording:"${lucene(q.title)}" AND artist:"${lucene(q.artist)}" AND video:true`;
     const res = await mb<{ recordings: { id: string; score: number; title: string; 'artist-credit'?: { name: string }[] }[] }>(`recording?query=${encodeURIComponent(query)}&fmt=json&limit=5`);
     const t = words(q.title);
@@ -112,5 +148,5 @@ export function findOfficialVideo(q: SongQuery): Promise<string | null> {
       }
     }
     return null;
-  });
+  }));
 }

@@ -6,6 +6,7 @@ import { audio, EQ_BANDS, EQ_PRESETS } from '../engine/audio';
 import { bridge, isDesktop } from '../lib/bridge';
 import type { ProviderStatus, ScanReport } from '../lib/types';
 import { chooseBackground } from '../lib/background';
+import { useUpdateState, updateCopy } from './UpdateNotice';
 
 const TAB_LABEL: Record<SettingsTab, string> = { equalizer: 'Equalizer', settings: 'Settings', accessibility: 'Accessibility', connections: 'Connections', account: 'Account' };
 
@@ -195,12 +196,25 @@ function GeneralTab() {
         </div>
       </Group>
       <Group title="About">
-        <div className="row"><div className="row-l"><span>Noctune {bridge.version}</span><small>{isDesktop ? `Desktop · ${bridge.platform}` : 'Web preview · library and providers need the desktop app'}</small></div>
-          <button className="btn" onClick={() => void bridge.openExternal('https://github.com/kerioxsx/noctune/releases')}>Check for updates</button>
-        </div>
+        <AboutRow />
         <div className="row"><div className="row-l"><span>Troubleshooting</span><small>No sound: check the system output device and that the volume slider is above 0. Video will not play: the format may be unsupported on this OS; MP4 (H.264/AAC) works everywhere.</small></div></div>
       </Group>
     </>
+  );
+}
+
+function AboutRow() {
+  const u = useUpdateState();
+  const { text, action } = updateCopy(u);
+  const busy = u.status === 'checking' || u.status === 'downloading';
+  return (
+    <div className="row">
+      <div className="row-l">
+        <span>Noctune {bridge.version}</span>
+        <small>{isDesktop ? text || `Desktop · ${bridge.platform}. Updates download and install inside the app.` : 'Web preview · library and providers need the desktop app'}</small>
+      </div>
+      {isDesktop && (action ? <button className="btn primary" onClick={action.run}>{action.label}</button> : <button className="btn" disabled={busy} onClick={() => void bridge.updates.check()}>{busy ? 'Working…' : 'Check for updates'}</button>)}
+    </div>
   );
 }
 

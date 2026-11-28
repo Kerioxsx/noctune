@@ -6,6 +6,7 @@ import { readJson, writeJson, dataDir } from './store';
 import * as library from './library';
 import * as providers from './providers';
 import { findLyrics, findOfficialVideo, type SongQuery } from './lookups';
+import { initUpdater, checkForUpdates, downloadUpdate, installUpdate, getUpdateState } from './updater';
 
 registerSchemes();
 
@@ -219,6 +220,12 @@ function registerIpc() {
     return { ...(await library.scan(send)), folders: found };
   });
 
+  // in-app updates
+  ipcMain.handle('update:state', () => getUpdateState());
+  ipcMain.handle('update:check', () => checkForUpdates());
+  ipcMain.handle('update:download', () => downloadUpdate());
+  ipcMain.handle('update:install', () => installUpdate());
+
   ipcMain.handle('window:toggleFullscreen', () => {
     if (!win) return false;
     win.setFullScreen(!win.isFullScreen());
@@ -281,6 +288,7 @@ app.whenReady().then(async () => {
   });
   registerIpc();
   await createWindow();
+  initUpdater();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow();
   });

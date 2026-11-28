@@ -16,6 +16,7 @@ import { TrackList, Menu, type MenuItem, type Row } from './components/TrackList
 import { SettingsHub } from './components/Settings';
 import { PlaylistEditor } from './components/PlaylistEditor';
 import { Welcome } from './components/Welcome';
+import { UpdateNotice } from './components/UpdateNotice';
 import { isDesktop } from './lib/bridge';
 import { Cross, Circle, Triangle, Square } from './components/Icons';
 
@@ -121,9 +122,10 @@ export function App() {
       return;
     }
     if (front.kind === 'playlist' && front.id.startsWith('spotify-playlist:')) {
-      // provider playlists load their track list on demand
+      // provider playlists load their songs on demand (a big one can take a few seconds)
       const p = s.providerPlaylists.find((x) => x.id === front.id);
       if (p && !p.entries.length) {
+        if (p.total) s.notify(`Loading ${p.total.toLocaleString()} songs from Spotify…`, 'info');
         try {
           const ts = await bridge.providers.playlistTracks(front.id);
           const tracks = { ...useStore.getState().tracks };
@@ -132,8 +134,15 @@ export function App() {
             tracks,
             providerPlaylists: useStore.getState().providerPlaylists.map((x) => (x.id === front.id ? { ...x, entries: ts.map((t, i) => ({ key: `${t.id}:${i}`, trackId: t.id, addedAt: 0, title: t.title, artist: t.artist })) } : x)),
           });
+          if (!ts.length) {
+            play('error');
+            s.notify(p.total ? 'Spotify did not share the songs in this playlist. Spotify only shares playlists you created or collaborate on; save the songs to Liked Songs or copy the playlist in Spotify to play it here.' : 'This playlist is empty on Spotify.', 'error');
+            return;
+          }
         } catch (e) {
-          s.notify((e as Error).message, 'error');
+          play('error');
+          s.notify(`Could not load this playlist from Spotify: ${(e as Error).message}`, 'error');
+          return;
         }
       }
     }
@@ -515,6 +524,7 @@ export function App() {
               }}
             />
           )}
+          {(screen === 'library' || screen === 'confirm') && !welcome && <UpdateNotice />}
           {s.editing && <PlaylistEditor id={s.editing} onClose={() => useStore.setState({ editing: null })} />}
           {menu && <Menu items={menu.items} x={menu.x} y={menu.y} onClose={() => setMenu(null)} />}
           {s.toast && <div className={`toast ${s.toast.tone}`} role="status">{s.toast.text}</div>}

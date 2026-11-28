@@ -63,6 +63,8 @@ jobs:
             app/release/Noctune-*.AppImage
             app/release/Noctune-*.deb
             app/release/Noctune-*.tar.gz
+            app/release/*.blockmap
+            app/release/latest*.yml
           if-no-files-found: error
 
   # Publishes the installers as the latest GitHub Release, so the website's download
@@ -82,6 +84,8 @@ jobs:
           merge-multiple: true
       - id: version
         run: echo "v=$(node -p "require('./app/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Version file for in-app update checks
+        run: echo "{\"tag\":\"v${{ steps.version.outputs.v }}\",\"version\":\"${{ steps.version.outputs.v }}\"}" > installers/version.json
       - run: ls -la installers
       # third-party action pinned to an exact commit (v2)
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
@@ -98,6 +102,9 @@ jobs:
             installers/Noctune-*.AppImage
             installers/Noctune-*.deb
             installers/Noctune-*.tar.gz
+            installers/*.blockmap
+            installers/latest*.yml
+            installers/version.json
           body: |
             Download the installer for your system:
 

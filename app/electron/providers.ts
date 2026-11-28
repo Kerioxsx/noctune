@@ -24,40 +24,76 @@ const cfg = () => readJson<ProviderConfig>('providers', {});
 
 const b64url = (b: Buffer) => b.toString('base64url');
 
-function waitForCode(expectedState: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let server: Server | null = null;
-    const timer = setTimeout(() => {
-      server?.close();
-      reject(new Error('Sign-in timed out. Try connecting again.'));
-    }, 5 * 60_000);
-    server = createServer((req, res) => {
+let activeServer: Server | null = null;
+
+/**
+ * Loopback listener for the OAuth redirect. It keeps listening until the real
+ * callback (matching state, with a code) arrives: browsers can send early or
+ * stray requests (prefetch, favicon, a reload of an old tab) and those must not
+ * end the sign-in. Resolves `listening` once the port is open, so the browser is
+ * only opened when the redirect can be received.
+ */
+function waitForCode(expectedState: string): { listening: Promise<void>; code: Promise<string> } {
+  if (activeServer) {
+    activeServer.close(); // a previous attempt that was abandoned
+    activeServer.closeAllConnections();
+  }
+  let onListen!: () => void;
+  let onListenErr!: (e: Error) => void;
+  const listening = new Promise<void>((res, rej) => ((onListen = res), (onListenErr = rej)));
+  const page = (msg: string) =>
+    `<!doctype html><meta charset=utf-8><title>Noctune</title><body style="background:#0b0d0a;color:#e9e4d0;font:14px ui-monospace,monospace;display:grid;place-items:center;height:100vh;margin:0;text-align:center"><p>${msg}</p></body>`;
+  const code = new Promise<string>((resolve, reject) => {
+    const server = createServer((req, res) => {
       const url = new URL(req.url ?? '/', REDIRECT_URI);
       if (url.pathname !== '/callback') {
-        res.writeHead(404).end();
+        res.writeHead(404, { Connection: 'close' }).end();
         return;
       }
-      const code = url.searchParams.get('code');
+      const c = url.searchParams.get('code');
       const state = url.searchParams.get('state');
       const err = url.searchParams.get('error');
-      const ok = !!code && state === expectedState && !err;
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(
-        `<!doctype html><meta charset=utf-8><title>Noctune</title><body style="background:#0b0d0a;color:#e9e4d0;font:14px ui-monospace,monospace;display:grid;place-items:center;height:100vh;margin:0"><p>${
-          ok ? 'Connected. You can close this tab and return to Noctune.' : 'Sign-in was cancelled or failed. Return to Noctune and try again.'
-        }</p></body>`,
-      );
-      clearTimeout(timer);
-      server?.close();
-      if (ok) resolve(code!);
-      else reject(new Error(err === 'access_denied' ? 'Access was declined.' : 'Sign-in failed.'));
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', Connection: 'close' });
+      if (state !== expectedState) {
+        // an old tab or an early request: keep waiting for this sign-in
+        res.end(page('This sign-in link has expired. Return to Noctune; the current sign-in is still waiting.'));
+        return;
+      }
+      if (err) {
+        res.end(page(err === 'access_denied' ? 'Access was declined. You can close this tab.' : `Sign-in failed (${err.replace(/[<>&"]/g, '')}). Return to Noctune and try again.`));
+        finish();
+        reject(new Error(err === 'access_denied' ? 'Access was declined.' : `The service refused the sign-in (${err}).`));
+        return;
+      }
+      if (!c) {
+        res.end(page('Still waiting for the sign-in to finish…'));
+        return;
+      }
+      res.end(page('Connected. You can close this tab and return to Noctune.'));
+      finish();
+      resolve(c);
     });
+    const timer = setTimeout(() => {
+      finish();
+      reject(new Error('Sign-in timed out. Try connecting again.'));
+    }, 5 * 60_000);
+    const finish = () => {
+      clearTimeout(timer);
+      server.close();
+      setTimeout(() => server.closeAllConnections(), 1000).unref();
+      if (activeServer === server) activeServer = null;
+    };
     server.on('error', (e) => {
-      clearTimeout(timer);
-      reject(new Error(`Could not open the sign-in callback on port ${REDIRECT_PORT}: ${(e as Error).message}`));
+      finish();
+      const msg = `Could not open the sign-in callback on port ${REDIRECT_PORT}: ${(e as Error).message}`;
+      onListenErr(new Error(msg));
+      reject(new Error(msg));
     });
-    server.listen(REDIRECT_PORT, '127.0.0.1');
+    server.listen(REDIRECT_PORT, '127.0.0.1', () => onListen());
+    activeServer = server;
   });
+  code.catch(() => undefined);
+  return { listening, code };
 }
 
 async function pkceSignIn(authorizeUrl: string, params: Record<string, string>) {
@@ -69,8 +105,9 @@ async function pkceSignIn(authorizeUrl: string, params: Record<string, string>) 
     url.searchParams.set(k, v);
   }
   const wait = waitForCode(state);
+  await wait.listening; // only open the browser once the redirect can be received
   await shell.openExternal(url.toString());
-  const code = await wait;
+  const code = await wait.code;
   return { code, verifier };
 }
 
@@ -148,36 +185,74 @@ function spTrack(t: SpTrack, album?: { id: string; name: string; images: SpImage
   };
 }
 
+const nextPath = (n: string | null | undefined) => (n ? n.replace('https://api.spotify.com/v1', '') : null);
+
 async function spotifyLibrary(): Promise<ProviderLibrary> {
   const tracks: LibraryTrack[] = [];
   const albums: LibraryAlbum[] = [];
   let next: string | null = '/me/albums?limit=50';
   let pages = 0;
-  while (next && pages++ < 6) {
+  while (next && pages++ < 40) {
     const page: { items: { album: { id: string; name: string; uri: string; release_date: string; images: SpImage[]; artists: { name: string }[]; tracks: { items: SpTrack[] } } }[]; next: string | null } = await spotify(next);
     for (const { album } of page.items) {
       const ts = album.tracks.items.map((t) => spTrack(t, album));
       tracks.push(...ts);
       albums.push({ id: `spotify-album:${album.id}`, source: 'spotify', title: album.name, artist: album.artists.map((a) => a.name).join(', '), year: parseInt(album.release_date, 10) || undefined, artwork: album.images[0]?.url, trackIds: ts.map((t) => t.id), providerUri: album.uri });
     }
-    next = page.next ? page.next.replace('https://api.spotify.com/v1', '') : null;
+    next = nextPath(page.next);
   }
+  // Liked Songs first, then every playlist. Songs load when a playlist is opened; the count shows now.
   const pls: ProviderLibrary['playlists'] = [];
-  const plPage: { items: { id: string; name: string; description: string; images: SpImage[] | null; uri: string }[] } = await spotify('/me/playlists?limit=50');
-  for (const p of plPage.items) {
-    pls.push({ id: `spotify-playlist:${p.id}`, title: p.name, description: p.description, artwork: p.images?.[0]?.url, providerUri: p.uri, trackIds: [] });
+  const liked = await spotify<{ total: number }>('/me/tracks?limit=1').catch(() => null);
+  if (liked?.total) pls.push({ id: 'spotify-playlist:liked', title: 'Liked Songs', description: 'Your liked songs on Spotify', trackIds: [], total: liked.total });
+  next = '/me/playlists?limit=50';
+  pages = 0;
+  while (next && pages++ < 40) {
+    type Pl = { id: string; name: string; description: string; images: SpImage[] | null; uri: string; tracks?: { total: number }; items?: { total: number } };
+    const page: { items: (Pl | null)[]; next: string | null } = await spotify(next);
+    for (const p of page.items) {
+      if (!p) continue;
+      pls.push({ id: `spotify-playlist:${p.id}`, title: p.name, description: p.description, artwork: p.images?.[0]?.url, providerUri: p.uri, trackIds: [], total: p.items?.total ?? p.tracks?.total });
+    }
+    next = nextPath(page.next);
   }
   return { tracks, albums, playlists: pls };
 }
 
+/**
+ * Every song in a playlist (or Liked Songs). Spotify has been moving playlist
+ * contents from /tracks with a `track` field to /items with an `item` field, so
+ * both are read. Episodes and local files (no id) are skipped.
+ */
 async function spotifyPlaylistTracks(id: string): Promise<LibraryTrack[]> {
+  const pid = id.replace('spotify-playlist:', '');
   const out: LibraryTrack[] = [];
-  let next: string | null = `/playlists/${id.replace('spotify-playlist:', '')}/tracks?limit=100`;
-  let pages = 0;
-  while (next && pages++ < 10) {
-    const page: { items: { track: SpTrack | null }[]; next: string | null } = await spotify(next);
-    for (const it of page.items) if (it.track && it.track.id) out.push(spTrack(it.track));
-    next = page.next ? page.next.replace('https://api.spotify.com/v1', '') : null;
+  type Entry = { track?: SpTrack | null; item?: SpTrack | null };
+  const read = async (first: string) => {
+    let next: string | null = first;
+    let pages = 0;
+    while (next && pages++ < 200) {
+      const page: { items: Entry[]; next: string | null } = await spotify(next);
+      for (const it of page.items ?? []) {
+        const t = it.item ?? it.track;
+        if (t && t.id && (t as SpTrack & { type?: string }).type !== 'episode') out.push(spTrack(t));
+      }
+      next = nextPath(page.next);
+    }
+  };
+  if (pid === 'liked') {
+    await read('/me/tracks?limit=50');
+    return out;
+  }
+  try {
+    await read(`/playlists/${pid}/items?limit=100&additional_types=track`);
+  } catch (e) {
+    if (out.length) throw e;
+    await read(`/playlists/${pid}/tracks?limit=100&additional_types=track`);
+  }
+  if (!out.length) {
+    // some accounts still only return the older shape
+    await read(`/playlists/${pid}/tracks?limit=100&additional_types=track`).catch(() => undefined);
   }
   return out;
 }

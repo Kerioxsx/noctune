@@ -322,3 +322,13 @@ input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 11p
 .welcome-skip { font-size: 12px; color: var(--cream-dim); text-decoration: underline; text-underline-offset: 3px; }
 .welcome-skip:hover { color: var(--cream); }
 .welcome .welcome-note { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line-soft); font-size: 11px; color: var(--cream-dim); }
+
+/* ------------------------------------------------------- in-app update */
+.update-notice {
+  position: absolute; z-index: 30; left: 50%; top: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px;
+  max-width: 560px; padding: 7px 8px 7px 14px; border: 1.5px solid var(--line); border-radius: 8px; background: rgba(6, 7, 5, 0.9);
+  font: 11.5px/1.4 var(--mono); color: var(--cream); overflow: hidden; animation: panelIn calc(220ms * var(--anim)) var(--ease-out);
+}
+.update-notice .btn { padding: 5px 10px; font-size: 11px; }
+.update-later { font-size: 11px; color: var(--cream-dim); text-decoration: underline; text-underline-offset: 3px; padding: 0 4px; }
+.update-bar { position: absolute; left: 0; bottom: 0; height: 2px; width: var(--p); background: var(--olive); transition: width 200ms linear; }

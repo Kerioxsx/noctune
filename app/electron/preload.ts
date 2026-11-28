@@ -1,6 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-const invoke = (ch: string, ...args: unknown[]) => ipcRenderer.invoke(ch, ...args);
+// Errors from the main process arrive as "Error invoking remote method 'x': Error: reason"; keep only the reason.
+const invoke = (ch: string, ...args: unknown[]) =>
+  ipcRenderer.invoke(ch, ...args).catch((e: unknown) => {
+    throw new Error(String((e as Error)?.message ?? e).replace(/^Error invoking remote method '[^']+': (?:\w*Error: )?/, ''));
+  });
 
 contextBridge.exposeInMainWorld('noctune', {
   platform: process.platform,
@@ -52,5 +56,16 @@ contextBridge.exposeInMainWorld('noctune', {
   },
   openExternal: (url: string) => invoke('shell:openExternal', url),
   clearCache: () => invoke('app:clearCache'),
+  updates: {
+    state: () => invoke('update:state'),
+    check: () => invoke('update:check'),
+    download: () => invoke('update:download'),
+    install: () => invoke('update:install'),
+    onState: (cb: (s: unknown) => void) => {
+      const h = (_: unknown, s: unknown) => cb(s);
+      ipcRenderer.on('update:state', h);
+      return () => ipcRenderer.removeListener('update:state', h);
+    },
+  },
   deleteAllData: () => invoke('app:deleteAllData'),
 });

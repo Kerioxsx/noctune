@@ -67,7 +67,7 @@ export interface ProviderStatus {
 export interface ProviderLibrary {
   tracks: LibraryTrack[];
   albums: LibraryAlbum[];
-  playlists: { id: string; title: string; description: string; artwork?: string; providerUri?: string; trackIds: string[] }[];
+  playlists: { id: string; title: string; description: string; artwork?: string; providerUri?: string; trackIds: string[]; total?: number }[];
 }
 
 export interface RemoteState {
@@ -107,9 +107,18 @@ export interface Playlist {
   updatedAt: number;
   /** Set when imported from a provider; read-only mirror. */
   providerId?: string;
+  /** song count reported by the provider before the songs are loaded */
+  total?: number;
   shared?: { role: 'owner' | 'editor' | 'listener'; members: { name: string; role: 'owner' | 'editor' | 'listener' }[] };
   history?: { at: number; by: string; action: string }[];
 }
+
+export type UpdateState =
+  | { status: 'idle' | 'checking' | 'none' }
+  | { status: 'available'; version: string; manual: boolean }
+  | { status: 'downloading'; version: string; percent: number }
+  | { status: 'ready'; version: string; manual: boolean; file?: string }
+  | { status: 'error'; message: string };
 
 export interface BridgeAPI {
   platform: string;
@@ -147,6 +156,14 @@ export interface BridgeAPI {
   window: { toggleFullscreen(): Promise<boolean>; isFullscreen(): Promise<boolean>; onFullscreen(cb: (v: boolean) => void): () => void };
   openExternal(url: string): Promise<void>;
   clearCache(): Promise<void>;
+  /** in-app updates from GitHub Releases */
+  updates: {
+    state(): Promise<UpdateState>;
+    check(): Promise<UpdateState>;
+    download(): Promise<void>;
+    install(): Promise<void>;
+    onState(cb: (s: UpdateState) => void): () => void;
+  };
   /** erase every file Noctune stored and restart */
   deleteAllData(): Promise<void>;
 }

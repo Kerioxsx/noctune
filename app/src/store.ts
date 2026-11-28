@@ -224,7 +224,7 @@ export function stackItems(s: Pick<State, 'albums' | 'playlists' | 'providerPlay
     kind: 'playlist',
     id: p.id,
     title: p.title,
-    subtitle: `${p.entries.length} track${p.entries.length === 1 ? '' : 's'}${p.providerId ? ` · ${p.providerId}` : ''}`,
+    subtitle: `${(p.entries.length || p.total) ?? 0} track${((p.entries.length || p.total) ?? 0) === 1 ? '' : 's'}${p.providerId ? ` · ${p.providerId}` : ''}`,
     artwork: playlistArtwork(p, s.tracks),
     trackIds: p.entries.map((e) => e.trackId),
   }));
@@ -376,6 +376,7 @@ export async function loadProviders() {
         createdAt: 0,
         updatedAt: 0,
         providerId: p.id,
+        total: pl.total,
       }));
       useStore.setState({ tracks, albums, providerPlaylists: [...s.providerPlaylists.filter((x) => x.providerId !== p.id), ...pls] });
     } catch (e) {
