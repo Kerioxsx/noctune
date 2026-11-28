@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useStore, stackItems, currentTrack, playlists, type Shelf, type StackItem } from './store';
 import { useActions, useReducedMotion } from './engine/input';
 import { play } from './engine/sound';
-import { controller } from './engine/playback';
+import { controller, prefetchSongs } from './engine/playback';
 import { setUiSound } from './engine/sound';
 import { audio } from './engine/audio';
 import { bridge } from './lib/bridge';
@@ -139,6 +139,8 @@ export function App() {
     }
     play('open');
     go('confirm');
+    // look up this album's lyrics and official videos while the disc slides out
+    void prefetchSongs(rowsFor(front).map((r) => r.trackId));
   };
 
   const launch = (trackIds: string[], index: number) => {
@@ -177,7 +179,9 @@ export function App() {
         return;
       }
       if (performance.now() - started > 12000) {
-        controller.fail('This is taking longer than expected. The file may be large or the network slow.');
+        // a video that never started falls back to the song's audio; anything else gets the usual recovery
+        if (controller.active.kind === 'youtube') controller.fail('The video did not start.', { video: true });
+        else controller.fail('This is taking longer than expected. The file may be large or the network slow.');
         go('player');
         return;
       }

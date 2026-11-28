@@ -25,7 +25,7 @@ code { font-size: 0.9em; padding: 1px 5px; border-radius: 4px; background: rgba(
 <main>
   <p><a class="link" href="index.html">Back to Noctune</a></p>
   <h1>Privacy</h1>
-  <p class="updated">Last updated 28 November 2026</p>
+  <p class="updated">Last updated 28 November 2026 (lyrics and official videos are now found automatically)</p>
   <p>Noctune is a music player that runs on your computer. It has no accounts of its own and no servers, it shows no ads, and it sends no analytics, usage statistics or crash reports. Nobody involved in making Noctune receives any of your data.</p>
 
   <h2>What stays on your computer</h2>
@@ -34,7 +34,7 @@ code { font-size: 0.9em; padding: 1px 5px; border-radius: 4px; background: rgba(
     <li>the list of music folders and files you add, and an index of their titles, artists, albums and lengths</li>
     <li>cover art read from your files, and cover pictures or backgrounds you choose (copies, so moving the originals is fine)</li>
     <li>your playlists, your display name and avatar, your settings and the last thing you were playing</li>
-    <li>lyrics files you import</li>
+    <li>lyrics files you import, and lyrics and official-video links found online for your songs (saved so they work offline)</li>
     <li>sign-in tokens for Spotify or SoundCloud, encrypted with your system's keychain (Keychain on macOS, Credential protection on Windows, GNOME Keyring or KWallet on Linux). If no keychain is available, Noctune does not store them at all.</li>
   </ul>
   <p>Your music files are only read. Noctune never changes, moves, deletes or uploads them.</p>
@@ -48,8 +48,9 @@ code { font-size: 0.9em; padding: 1px 5px; border-radius: 4px; background: rgba(
       <tr><td>Connecting Spotify</td><td>Spotify</td><td>You sign in on Spotify's own page in your browser; Noctune never sees your password. Noctune then reads your saved albums and playlists and sends play, pause, seek and volume commands.</td></tr>
       <tr><td>Connecting SoundCloud</td><td>SoundCloud</td><td>The same: sign-in on SoundCloud's page, then reading your likes and playlists and streaming the tracks you play.</td></tr>
       <tr><td>Adding an Apple Music token</td><td>Apple</td><td>The developer token you paste, to check that it works.</td></tr>
-      <tr><td>Linking an official video</td><td>YouTube (youtube-nocookie.com)</td><td>The video's ID when you play it. The player is YouTube's own, so YouTube receives your IP address like any embedded video.</td></tr>
-      <tr><td>Community lyrics (off unless you switch it on)</td><td>LRCLIB (lrclib.net)</td><td>The title, artist, album and length of the song playing, to look up its lyrics.</td></tr>
+      <tr><td>Finding lyrics (on by default; Settings → Settings → Find lyrics online)</td><td>LRCLIB (lrclib.net)</td><td>The title, artist, album and length of a song, once, to look up its timed lyrics.</td></tr>
+      <tr><td>Finding official videos (on by default; Settings → Settings → Play official music videos)</td><td>MusicBrainz (musicbrainz.org)</td><td>The title and artist of a song, once, to find the official video its editors have linked.</td></tr>
+      <tr><td>Playing an official video</td><td>YouTube (youtube-nocookie.com)</td><td>The video's ID when it plays. The player is YouTube's own, so YouTube receives your IP address like any embedded video.</td></tr>
       <tr><td>“Check for updates”</td><td>GitHub</td><td>Opens the release page in your browser.</td></tr>
     </tbody>
   </table>

@@ -184,7 +184,8 @@ function GeneralTab() {
         <Choice label="Repeat" value={s.repeat} options={[{ v: 'off', l: 'Off' }, { v: 'all', l: 'All' }, { v: 'one', l: 'One' }]} onChange={(v) => { update((x) => (x.repeat = v)); useStore.setState({ repeat: v }); }} />
         <Toggle label="Remember repeat mode" hint="Off: repeat resets each session." checked={s.repeatPersist} onChange={(v) => update((x) => (x.repeatPersist = v))} />
         <Toggle label="Resume last session" hint="Reopens the last queue, paused where you left it." checked={s.resumeSession} onChange={(v) => update((x) => (x.resumeSession = v))} />
-        <Toggle label="Community lyrics" hint="Looks up timed lyrics on LRCLIB (lrclib.net) when a track has none. Sends the track title and artist to LRCLIB." checked={s.lyrics.community} onChange={(v) => update((x) => (x.lyrics.community = v))} />
+        <Toggle label="Find lyrics online" hint="Looks up timed lyrics on LRCLIB (lrclib.net) for songs that have none, and saves them so they work offline. Sends the song's title, artist, album and length to LRCLIB." checked={s.lyrics.community} onChange={(v) => update((x) => (x.lyrics.community = v))} />
+        <Toggle label="Play official music videos" hint="Finds each song's official video through MusicBrainz (musicbrainz.org) and plays it in YouTube's player at the best quality your screen and connection allow. Sends the song's title and artist to MusicBrainz; the video comes from YouTube." checked={s.autoVideo} onChange={(v) => update((x) => (x.autoVideo = v))} />
       </Group>
       <Group title="Privacy & data">
         <div className="row"><div className="row-l"><span>Diagnostics</span><small>Noctune sends no analytics or crash reports.</small></div></div>

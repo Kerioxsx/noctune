@@ -12,6 +12,8 @@ import { bridge } from '../lib/bridge';
 export function Welcome({ onClose, onConnect }: { onClose: () => void; onConnect: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const notify = useStore((s) => s.notify);
+  const detected = useStore((s) => s.detected);
+  const scanning = useStore((s) => s.scan.running);
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
@@ -64,14 +66,18 @@ export function Welcome({ onClose, onConnect }: { onClose: () => void; onConnect
     <>
       <div className="layer welcome-scrim" aria-hidden />
       <div className="welcome ui-text" role="dialog" aria-modal="true" aria-labelledby="welcome-h" ref={ref}>
-        <h2 id="welcome-h">Bring your music</h2>
-        <p>The albums here are demos. To see your own music in the stack, add your MP3 and MP4 files, or connect a music service. Noctune only reads your files; it never changes them.</p>
+        <h2 id="welcome-h">{detected?.added ? 'Your music is here' : 'Bring your music'}</h2>
+        {detected?.added ? (
+          <p>Noctune found {detected.added} song{detected.added === 1 ? '' : 's'} in your Music folder and put them at the front of the stack. Lyrics and official music videos are found for each song as you play it. Add more folders or connect a service below.</p>
+        ) : (
+          <p>{scanning ? 'Looking for music in your Music folder… ' : ''}To see your own music in the stack, add your MP3 and MP4 files, or connect a music service. Lyrics and official music videos are then found for each song automatically. Noctune only reads your files; it never changes them.</p>
+        )}
         <div className="welcome-actions">
           <button className="btn primary" disabled={!!busy} onClick={() => void add('files')}>{busy === 'files' ? 'Reading files…' : 'Add music files…'}</button>
           <button className="btn" disabled={!!busy} onClick={() => void add('folder')}>{busy === 'folder' ? 'Reading folder…' : 'Add a music folder…'}</button>
           <button className="btn" disabled={!!busy} onClick={() => { play('confirm'); onConnect(); }}>Connect Spotify or SoundCloud</button>
         </div>
-        <button className="welcome-skip" disabled={!!busy} onClick={() => { play('back'); onClose(); }}>Explore the demo albums first</button>
+        <button className="welcome-skip" disabled={!!busy} onClick={() => { play('back'); onClose(); }}>{detected?.added ? 'Start listening' : 'Explore the demo albums first'}</button>
         <p className="welcome-note">You can do this any time: press □ (O) on the stack and choose “Add your music…”, or open Settings → Connections.</p>
       </div>
     </>

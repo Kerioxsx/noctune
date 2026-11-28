@@ -5,6 +5,7 @@ import { registerSchemes, handleProtocol, allowRoot, allowPath, mediaUrl } from 
 import { readJson, writeJson, dataDir } from './store';
 import * as library from './library';
 import * as providers from './providers';
+import { findLyrics, findOfficialVideo, type SongQuery } from './lookups';
 
 registerSchemes();
 
@@ -191,20 +192,30 @@ function registerIpc() {
   ipcMain.handle('providers:remote', (_e, cmd) => providers.remote(cmd));
 
   // Community lyrics (LRCLIB). Only called when the user turns it on in Settings.
-  ipcMain.handle('lyrics:lookup', async (_e, q: { title: string; artist: string; album?: string; duration?: number }) => {
-    const u = new URL('https://lrclib.net/api/get');
-    u.searchParams.set('track_name', q.title);
-    u.searchParams.set('artist_name', q.artist);
-    if (q.album) u.searchParams.set('album_name', q.album);
-    if (q.duration) u.searchParams.set('duration', String(Math.round(q.duration)));
-    try {
-      const res = await fetch(u, { headers: { 'User-Agent': 'Noctune (https://github.com/kerioxsx/noctune)' } });
-      if (!res.ok) return null;
-      const j = (await res.json()) as { syncedLyrics?: string | null; plainLyrics?: string | null };
-      return j.syncedLyrics ?? j.plainLyrics ?? null;
-    } catch {
-      return null;
-    }
+  // Online lookups (LRCLIB lyrics, MusicBrainz official videos); renderer settings decide whether they run.
+  const songQuery = (q: unknown): SongQuery | null => {
+    const o = q as Partial<SongQuery>;
+    if (!o || typeof o.title !== 'string' || typeof o.artist !== 'string' || !o.title.trim() || !o.artist.trim() || o.artist === 'Unknown artist') return null;
+    return { title: o.title.slice(0, 200), artist: o.artist.slice(0, 200), album: typeof o.album === 'string' ? o.album.slice(0, 200) : undefined, duration: typeof o.duration === 'number' ? o.duration : undefined };
+  };
+  ipcMain.handle('lyrics:lookup', async (_e, q: unknown) => {
+    const sq = songQuery(q);
+    return sq ? findLyrics(sq) : null;
+  });
+  ipcMain.handle('video:lookup', async (_e, q: unknown) => {
+    const sq = songQuery(q);
+    return sq ? findOfficialVideo(sq) : null;
+  });
+  // First launch: add the system Music folder if it exists, so the user's songs appear straight away.
+  ipcMain.handle('library:autoDetect', async () => {
+    const cfg = await library.getConfig();
+    if (cfg.folders.length || cfg.files.length) return null;
+    const found = await library.defaultMusicFolders(app.getPath('music'));
+    if (!found.length) return null;
+    cfg.folders.push(...found);
+    found.forEach(allowRoot);
+    await library.saveConfig(cfg);
+    return { ...(await library.scan(send)), folders: found };
   });
 
   ipcMain.handle('window:toggleFullscreen', () => {
@@ -250,6 +261,11 @@ app.whenReady().then(async () => {
   const cfg = await library.getConfig();
   cfg.folders.forEach(allowRoot);
   cfg.files.forEach(allowPath);
+  // videos linked to tracks by hand live outside the library folders; re-allow them too
+  for (const o of Object.values(cfg.overrides)) {
+    const m = typeof o?.videoUrl === 'string' && /^noctune:\/\/media\/([\w-]+)$/.exec(o.videoUrl);
+    if (m) allowPath(Buffer.from(m[1], 'base64url').toString('utf8'));
+  }
   allowRoot(join(dataDir(), 'artwork'));
   allowRoot(join(dataDir(), 'covers'));
   handleProtocol(async (url, req) => {

@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('noctune', {
     addFiles: () => invoke('library:addFiles'),
     removeFolder: (p: string) => invoke('library:removeFolder', p),
     rescan: () => invoke('library:rescan'),
+    autoDetect: () => invoke('library:autoDetect'),
     setOverride: (id: string, v: unknown) => invoke('library:setOverride', id, v),
     onProgress: (cb: (d: number, t: number) => void) => {
       const h = (_: unknown, d: number, t: number) => cb(d, t);
@@ -38,6 +39,7 @@ contextBridge.exposeInMainWorld('noctune', {
     remote: (cmd: unknown) => invoke('providers:remote', cmd),
   },
   lyrics: { lookup: (q: unknown) => invoke('lyrics:lookup', q) },
+  video: { lookup: (q: unknown) => invoke('video:lookup', q) },
   window: {
     toggleFullscreen: () => invoke('window:toggleFullscreen'),
     isFullscreen: () => invoke('window:isFullscreen'),

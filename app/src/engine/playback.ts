@@ -294,6 +294,15 @@ class YouTubeBackend implements Backend {
     f.title = 'YouTube video player';
     this.frame = f;
     this.host.replaceChildren(f);
+    if (autoplay) {
+      // Watchdog from the moment the video is requested: if it is not really playing within
+      // 8 seconds, fall back to the song's audio rather than leave a frozen frame.
+      window.setTimeout(() => {
+        if (this.frame === f && this.info.state !== 1 && this.info.state !== 2 && this.info.state !== 0) {
+          controller.fail('The video did not start.', { video: true });
+        }
+      }, 8000);
+    }
     await new Promise<void>((res, rej) => {
       this.ready = { res, rej };
       const listen = () => f.contentWindow?.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), YT_ORIGIN);
@@ -310,6 +319,9 @@ class YouTubeBackend implements Backend {
         }
       }, 12000);
     });
+    if (!autoplay) return;
+    // YouTube can ignore the autoplay flag; ask explicitly, then make sure the video really starts.
+    this.send('playVideo');
   }
   play() {
     this.send('playVideo');
@@ -372,6 +384,45 @@ async function spotifyPlay(uris: string[], positionMs = 0, deviceId?: string) {
   await bridge.providers.remote({ op: 'play', uris, positionMs, deviceId: dev.id });
 }
 
+// --------------------------------------------- lyrics and videos, found online
+const videoMemo = new Map<string, Promise<string | null>>();
+const lyricsMemo = new Map<string, Promise<string | null>>();
+const songQuery = (t: LibraryTrack) => ({ title: t.title, artist: t.artist, album: t.album, duration: t.duration });
+const lookable = (t: LibraryTrack) => t.source !== 'demo' && !!t.title && !!t.artist && t.artist !== 'Unknown artist';
+
+/** The song's official music video (YouTube id), looked up once per track and cached by the app. */
+export function officialVideo(t: LibraryTrack): Promise<string | null> {
+  if (!lookable(t)) return Promise.resolve(null);
+  let p = videoMemo.get(t.id);
+  if (!p) {
+    p = bridge.video.lookup(songQuery(t)).catch(() => null);
+    videoMemo.set(t.id, p);
+  }
+  return p;
+}
+
+/** Timed lyrics found online for the song, looked up once per track. */
+export function onlineLyrics(t: LibraryTrack): Promise<string | null> {
+  if (!lookable(t)) return Promise.resolve(null);
+  let p = lyricsMemo.get(t.id);
+  if (!p) {
+    p = bridge.lyrics.lookup(songQuery(t)).catch(() => null);
+    lyricsMemo.set(t.id, p);
+  }
+  return p;
+}
+
+/** Look up an album's videos and lyrics in the background so they are ready when it plays. */
+export async function prefetchSongs(trackIds: string[]) {
+  const st = useStore.getState();
+  for (const id of trackIds.slice(0, 30)) {
+    const t = st.tracks[id];
+    if (!t) continue;
+    if (st.settings.lyrics.community && !t.lyricsUrl && !t.embeddedLyrics) void onlineLyrics(t);
+    if (st.settings.autoVideo && !t.youtubeId && !t.videoUrl) await officialVideo(t); // sequential: the main process paces requests
+  }
+}
+
 // ------------------------------------------------- the same song elsewhere
 const norm = (x: string) =>
   x
@@ -428,9 +479,12 @@ class Controller {
     await this.loadIndex(index, opts.autoplay ?? true, opts.startAt ?? 0);
   }
 
+  private indexToken = 0;
+
   private async loadIndex(index: number, autoplay: boolean, startAt = 0) {
     const s = useStore.getState();
-    const t = s.tracks[s.queue[index]];
+    let t = s.tracks[s.queue[index]];
+    const mine = ++this.indexToken;
     this.tried = new Set();
     useStore.setState({ index, error: null, buffering: true, notice: null });
     if (!t) {
@@ -438,7 +492,28 @@ class Controller {
       return;
     }
     this.autoplayNext = autoplay;
-    if (!t.available) {
+    // Play the official music video when the song has one (a video file next to the song wins).
+    if (s.settings.autoVideo && !t.youtubeId && !t.videoUrl && !t.isVideo) {
+      const lookup = officialVideo(t);
+      const id = await Promise.race([lookup, sleep(4000).then(() => null)]);
+      if (mine !== this.indexToken) return; // the user moved on while we looked
+      if (id) {
+        t = { ...t, youtubeId: id };
+        const st = useStore.getState();
+        useStore.setState({ tracks: { ...st.tracks, [t.id]: t } });
+      } else {
+        // Slow lookup: start the song now, and switch to the video at the same moment if it turns up.
+        const song = t;
+        void lookup.then((late) => {
+          if (!late || mine !== this.indexToken || this.active.kind !== 'media' || this.playing?.id !== song.id) return;
+          const withVideo = { ...song, youtubeId: late };
+          const st = useStore.getState();
+          useStore.setState({ tracks: { ...st.tracks, [song.id]: withVideo } });
+          void this.loadTrack(withVideo, st.playing, this.active.time());
+        });
+      }
+    }
+    if (!t.available && !t.youtubeId) {
       this.fail(`“${t.title}” is unavailable from ${SOURCE_NAME[t.source] ?? t.source}.`);
       return;
     }

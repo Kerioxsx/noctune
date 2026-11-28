@@ -60,6 +60,7 @@ function browserBridge(): BridgeAPI {
       addFiles: desktopOnly,
       removeFolder: desktopOnly,
       rescan: desktopOnly,
+      autoDetect: async () => null,
       setOverride: async () => undefined,
       onProgress: () => () => undefined,
     },
@@ -103,6 +104,7 @@ function browserBridge(): BridgeAPI {
       remote: desktopOnly,
     },
     lyrics: { lookup: async () => null },
+    video: { lookup: async () => null },
     window: {
       toggleFullscreen: async () => {
         if (document.fullscreenElement) await document.exitFullscreen();

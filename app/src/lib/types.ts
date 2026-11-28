@@ -122,6 +122,8 @@ export interface BridgeAPI {
     rescan(): Promise<{ index: LibraryIndex; report: ScanReport }>;
     setOverride(trackId: string, values: Partial<LibraryTrack>): Promise<void>;
     onProgress(cb: (done: number, total: number) => void): () => void;
+    /** first launch: add the system Music folder if it has music */
+    autoDetect(): Promise<{ index: LibraryIndex; report: ScanReport; folders: string[] } | null>;
   };
   pickImage(): Promise<string | null>;
   pickLyrics(): Promise<{ name: string; text: string } | null>;
@@ -140,6 +142,8 @@ export interface BridgeAPI {
     remote(cmd: unknown): Promise<RemoteState | null>;
   };
   lyrics: { lookup(q: { title: string; artist: string; album?: string; duration?: number }): Promise<string | null> };
+  /** official music video on YouTube, found through MusicBrainz; returns the video id */
+  video: { lookup(q: { title: string; artist: string; album?: string; duration?: number }): Promise<string | null> };
   window: { toggleFullscreen(): Promise<boolean>; isFullscreen(): Promise<boolean>; onFullscreen(cb: (v: boolean) => void): () => void };
   openExternal(url: string): Promise<void>;
   clearCache(): Promise<void>;

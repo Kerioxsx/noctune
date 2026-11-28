@@ -54,6 +54,10 @@ export interface BackgroundSettings {
 export interface Settings {
   /** the first-run welcome has been seen */
   onboarded: boolean;
+  /** bumped when defaults change in a way existing installs should pick up */
+  settingsVersion: number;
+  /** look up each song's official music video and play it when one exists */
+  autoVideo: boolean;
   background: BackgroundSettings;
   effects: { enabled: boolean; intensity: number; vhs: boolean; scanlineStrength: number; halftone: boolean; scanlines: boolean; noise: boolean; glitches: boolean; chroma: boolean; vignette: boolean };
   sound: { enabled: boolean; volume: number; quietDuringPlayback: boolean };
@@ -79,6 +83,8 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   onboarded: false,
+  settingsVersion: 2,
+  autoVideo: true,
   background: { kind: 'city', fit: 'cover', print: false, dim: 0.15 },
   effects: { enabled: true, intensity: 0.6, vhs: true, scanlineStrength: 0.6, halftone: true, scanlines: true, noise: true, glitches: true, chroma: true, vignette: true },
   sound: { enabled: true, volume: 0.6, quietDuringPlayback: true },
@@ -90,7 +96,7 @@ export const DEFAULT_SETTINGS: Settings = {
   resumeSession: true,
   volume: 0.85,
   muted: false,
-  lyrics: { show: true, showNext: true, backdrop: 0.45, size: 1, community: false, offsets: {} },
+  lyrics: { show: true, showNext: true, backdrop: 0.45, size: 1, community: true, offsets: {} },
   textScale: 1,
   highContrast: false,
   focusAlways: false,
@@ -121,6 +127,8 @@ export interface StackItem {
 
 interface State {
   ready: boolean;
+  /** what first-launch detection found, shown in the welcome */
+  detected: { folders: string[]; added: number } | null;
   settings: Settings;
   profile: Profile;
   tracks: Record<string, LibraryTrack>;
@@ -158,6 +166,7 @@ interface State {
 
 export const useStore = create<State>((set, get) => ({
   ready: false,
+  detected: null,
   settings: DEFAULT_SETTINGS,
   profile: { name: 'Player 1', account: null },
   tracks: {},
@@ -295,6 +304,12 @@ export async function boot() {
   for (const k of Object.keys(DEFAULT_KEYMAP) as Action[]) if (!Array.isArray(merged.keymap[k])) merged.keymap[k] = DEFAULT_KEYMAP[k];
   if (!merged.videoLinks || typeof merged.videoLinks !== 'object') merged.videoLinks = {};
   if (!merged.lyrics.offsets || typeof merged.lyrics.offsets !== 'object') merged.lyrics.offsets = {};
+  // v2: lyrics and official videos are found automatically (people expect them without digging in settings)
+  if ((settings.settingsVersion ?? 1) < 2) {
+    merged.lyrics.community = true;
+    merged.autoVideo = true;
+    merged.settingsVersion = 2;
+  }
   const tracks: Record<string, LibraryTrack> = {};
   for (const t of [...demo.tracks, ...index.tracks]) tracks[t.id] = applyLinks(t, merged);
   // Real libraries come first; the demo shelf sits after them.
@@ -312,6 +327,14 @@ export async function boot() {
     repeat: merged.repeatPersist ? merged.repeat : 'off',
   });
   void loadProviders();
+  // first launch of the desktop app: pick up the system Music folder straight away
+  if (!merged.onboarded) {
+    bridge.library.autoDetect().then((r) => {
+      if (!r) return;
+      applyLibrary(r.index);
+      useStore.setState({ detected: { folders: r.folders, added: r.report.added }, sel: { albums: 0, playlists: 0 } });
+    }).catch(() => undefined);
+  }
 }
 
 function applyLinks(t: LibraryTrack, s: Settings): LibraryTrack {
