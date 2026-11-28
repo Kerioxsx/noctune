@@ -36,6 +36,12 @@ export const Fwd10 = (p: SVGProps<SVGSVGElement>) => (
 export const Repeat = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)} strokeWidth={1.7}><path d="M5 11V8h12" /><path d="M14.5 5.5L17 8l-2.5 2.5" /><path d="M19 13v3H7" /><path d="M9.5 18.5L7 16l2.5-2.5" /></svg>
 );
+export const Shuffle = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)} strokeWidth={1.7}><path d="M4 7h3.5c3 0 4 10 7 10H19" /><path d="M4 17h3.5c1.4 0 2.3-2 3-4.2" /><path d="M13.5 11.2c.7-2.2 1.6-4.2 3-4.2H19" /><path d="M16.8 4.8L19 7l-2.2 2.2" /><path d="M16.8 14.8L19 17l-2.2 2.2" /></svg>
+);
+export const Sparkle = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)} strokeWidth={1.6}><path d="M12 3.5l1.9 5.6 5.6 1.9-5.6 1.9L12 18.5l-1.9-5.6L4.5 11l5.6-1.9z" /><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" fill="currentColor" stroke="none" /></svg>
+);
 export const Volume = ({ level = 1, ...p }: SVGProps<SVGSVGElement> & { level?: number }) => (
   <svg {...base(p)} strokeWidth={1.7}>
     <path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z" fill="currentColor" stroke="none" />

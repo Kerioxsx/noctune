@@ -18,7 +18,7 @@ import { PlaylistEditor } from './components/PlaylistEditor';
 import { Welcome } from './components/Welcome';
 import { UpdateNotice } from './components/UpdateNotice';
 import { isDesktop } from './lib/bridge';
-import { Cross, Circle, Triangle, Square } from './components/Icons';
+import { Cross, Circle, Triangle, Square, Shuffle, Sparkle } from './components/Icons';
 
 const STAGE_W = 1280;
 const STAGE_H = 720;
@@ -293,11 +293,12 @@ export function App() {
     ];
     const list: MenuItem[] = [{ label: it.title, heading: true }, { label: 'Play', run: () => launch(rowsFor(it).map((r) => r.trackId), 0) }, { label: 'Shuffle play', run: () => {
       const ids = rowsFor(it).map((r) => r.trackId);
-      for (let i = ids.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [ids[i], ids[j]] = [ids[j], ids[i]];
-      }
-      launch(ids, 0);
+      if (s.shuffle === 'off') controller.setShuffle('shuffle');
+      launch(ids, Math.floor(Math.random() * ids.length));
+    } }, { label: 'Magic shuffle', run: () => {
+      const ids = rowsFor(it).map((r) => r.trackId);
+      controller.setShuffle('magic');
+      launch(ids, Math.floor(Math.random() * ids.length));
     } }, { label: 'Show tracks', run: () => useStore.setState({ trackList: { open: true, index: 0 } }) }];
     if (own) {
       list.push({ label: 'Edit details & cover…', run: () => useStore.setState({ editing: own.id }) });
@@ -326,6 +327,11 @@ export function App() {
     if (a === 'volUp' || a === 'volDown') {
       s.updateSettings((x) => ((x.volume = Math.max(0, Math.min(1, x.volume + (a === 'volUp' ? 0.05 : -0.05)))), (x.muted = false)));
       queueMicrotask(() => controller.applyVolume());
+      return;
+    }
+    if (a === 'shuffle') {
+      const m = controller.cycleShuffle();
+      s.notify(m === 'off' ? 'Shuffle off' : m === 'shuffle' ? 'Shuffle: this album or playlist in random order' : 'Magic shuffle: mixed with songs you may like');
       return;
     }
     if (a === 'repeat') {
@@ -536,21 +542,27 @@ export function App() {
 }
 
 function InfoPanel({ screen, item }: { screen: string; item?: StackItem }) {
+  const shuffle = useStore((s) => s.shuffle);
   const text =
     screen === 'confirm'
       ? item?.kind === 'playlist'
-        ? 'A playlist plays like a disc: in order, from the top. Open the track list to start anywhere.'
-        : 'Ready to play from the first track. Open the track list to start from another song.'
+        ? 'A playlist plays like a disc. Open the song list to search it or start anywhere.'
+        : 'Ready to play. Open the song list to search it or start from another song.'
       : 'Choose your soundtrack. Each record sets a different atmosphere and shapes the night ahead.';
   return (
     <aside className="info-panel ui-text">
       <p>{text}</p>
       <div className="hints">
         <span><Cross /> {screen === 'confirm' ? 'Play' : 'Select'}</span>
-        <span><Triangle /> Tracks</span>
+        <span><Triangle /> Songs</span>
         <span><Circle /> Back</span>
         <span><Square /> Options</span>
       </div>
+      <button className="shuffle-line" onClick={() => controller.cycleShuffle()} aria-label={`Shuffle: ${shuffle}. Change`}>
+        {shuffle === 'magic' ? <Sparkle aria-hidden /> : <Shuffle aria-hidden />}
+        <span>{shuffle === 'off' ? 'Shuffle off' : shuffle === 'shuffle' ? 'Shuffle on' : 'Magic shuffle'}</span>
+        <kbd>H</kbd>
+      </button>
     </aside>
   );
 }

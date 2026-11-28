@@ -1,4 +1,4 @@
-import { useStore, currentTrack, type RepeatMode } from '../store';
+import { useStore, currentTrack, type RepeatMode, type ShuffleMode } from '../store';
 import { bridge } from '../lib/bridge';
 import { audio } from './audio';
 import type { LibraryTrack, RemoteState } from '../lib/types';
@@ -639,6 +639,16 @@ export function alternativesFor(t: LibraryTrack, all: Record<string, LibraryTrac
 
 const SOURCE_NAME: Record<string, string> = { local: 'your files', soundcloud: 'SoundCloud', spotify: 'Spotify', apple: 'Apple Music', demo: 'the demo library' };
 
+/** Fisher–Yates: every order equally likely. */
+export function shuffled<T>(list: T[]): T[] {
+  const a = [...list];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 // ------------------------------------------------------------- controller
 class Controller {
   media = new MediaBackend();
@@ -664,7 +674,14 @@ class Controller {
 
   /** Replace the queue and start at index. */
   async start(trackIds: string[], index: number, opts: { autoplay?: boolean; startAt?: number } = {}) {
-    useStore.setState({ queue: trackIds, index });
+    const mode = useStore.getState().shuffle;
+    if (mode !== 'off' && trackIds.length > 1) {
+      // the chosen song first, the rest in random order
+      useStore.setState({ baseQueue: trackIds, queue: [trackIds[index], ...shuffled(trackIds.filter((_, i) => i !== index))], index: 0 });
+      await this.loadIndex(0, opts.autoplay ?? true, opts.startAt ?? 0);
+      return;
+    }
+    useStore.setState({ queue: trackIds, index, baseQueue: null });
     await this.loadIndex(index, opts.autoplay ?? true, opts.startAt ?? 0);
   }
 
@@ -844,6 +861,28 @@ class Controller {
     useStore.setState({ repeat: mode });
     if (st.settings.repeatPersist) st.updateSettings((x) => (x.repeat = mode));
     if (this.active.kind === 'spotify') void bridge.providers.remote({ op: 'repeat', mode: mode === 'one' ? 'track' : 'off' }).catch(() => undefined);
+  }
+  /** Switch shuffle without interrupting the song that is playing. */
+  setShuffle(mode: ShuffleMode) {
+    const s = useStore.getState();
+    const cur = s.queue[s.index];
+    if (mode === 'off') {
+      const base = s.baseQueue ?? s.queue;
+      const at = cur ? base.indexOf(cur) : -1;
+      useStore.setState({ shuffle: mode, queue: base, index: at >= 0 ? at : s.index, baseQueue: null });
+    } else if (s.shuffle === 'off' && s.queue.length > 1 && cur) {
+      const rest = s.queue.filter((_, i) => i !== s.index);
+      useStore.setState({ shuffle: mode, baseQueue: s.queue, queue: [cur, ...shuffled(rest)], index: 0 });
+    } else {
+      useStore.setState({ shuffle: mode });
+    }
+    if (s.settings.repeatPersist) s.updateSettings((x) => (x.shuffle = mode));
+  }
+  cycleShuffle() {
+    const order: ShuffleMode[] = ['off', 'shuffle', 'magic'];
+    const next = order[(order.indexOf(useStore.getState().shuffle) + 1) % 3];
+    this.setShuffle(next);
+    return next;
   }
   cycleRepeat() {
     const order: RepeatMode[] = ['off', 'all', 'one'];

@@ -6,13 +6,15 @@ import { demoArtwork } from './lib/demoArt';
 export type RepeatMode = 'off' | 'all' | 'one';
 export type Screen = 'library' | 'confirm' | 'launch' | 'loading' | 'player' | 'settings';
 export type Shelf = 'albums' | 'playlists';
+/** off: in order · shuffle: every song of the album/playlist once, random order · magic: shuffle plus songs you may like */
+export type ShuffleMode = 'off' | 'shuffle' | 'magic';
 export type SettingsTab = 'equalizer' | 'settings' | 'accessibility' | 'connections' | 'account';
 export const SETTINGS_TABS: SettingsTab[] = ['equalizer', 'settings', 'accessibility', 'connections', 'account'];
 
 export type Action =
   | 'up' | 'down' | 'left' | 'right' | 'confirm' | 'back' | 'info' | 'options' | 'settings'
   | 'playPause' | 'next' | 'prev' | 'seekFwd' | 'seekBack' | 'volUp' | 'volDown' | 'mute'
-  | 'fullscreen' | 'lyricsEarlier' | 'lyricsLater' | 'nowPlaying' | 'repeat' | 'tabPrev' | 'tabNext';
+  | 'fullscreen' | 'lyricsEarlier' | 'lyricsLater' | 'nowPlaying' | 'repeat' | 'shuffle' | 'tabPrev' | 'tabNext';
 
 export const DEFAULT_KEYMAP: Record<Action, string[]> = {
   up: ['ArrowUp', 'w'],
@@ -37,6 +39,7 @@ export const DEFAULT_KEYMAP: Record<Action, string[]> = {
   lyricsLater: [']'],
   nowPlaying: ['v'],
   repeat: ['r'],
+  shuffle: ['h'],
   tabPrev: ['q'],
   tabNext: ['e'],
 };
@@ -65,6 +68,7 @@ export interface Settings {
   animation: number;
   sort: 'library' | 'title' | 'artist' | 'source' | 'year';
   repeat: RepeatMode;
+  shuffle?: ShuffleMode;
   repeatPersist: boolean;
   resumeSession: boolean;
   volume: number;
@@ -153,6 +157,9 @@ interface State {
 
   queue: string[];
   index: number;
+  shuffle: ShuffleMode;
+  /** the album/playlist in its own order while shuffled */
+  baseQueue: string[] | null;
   playing: boolean;
   buffering: boolean;
   error: string | null;
@@ -191,6 +198,8 @@ export const useStore = create<State>((set, get) => ({
   launchFrom: null,
   queue: [],
   index: -1,
+  shuffle: 'off',
+  baseQueue: null,
   playing: false,
   buffering: false,
   error: null,
@@ -345,6 +354,7 @@ export async function boot() {
     files: index.files,
     providers,
     repeat: merged.repeatPersist ? merged.repeat : 'off',
+    shuffle: merged.repeatPersist && (merged.shuffle === 'shuffle' || merged.shuffle === 'magic') ? merged.shuffle : 'off',
   });
   void loadProviders();
   // first launch of the desktop app: pick up the system Music folder straight away

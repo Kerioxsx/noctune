@@ -221,7 +221,7 @@ function AboutRow() {
 const ACTION_LABEL: Record<Action, string> = {
   up: 'Move up', down: 'Move down', left: 'Left / switch shelf', right: 'Right / switch shelf', confirm: 'Select (×)', back: 'Back (○)', info: 'Track list (△)', options: 'Options (□)', settings: 'Settings',
   playPause: 'Play / pause', next: 'Next track', prev: 'Previous track', seekFwd: 'Forward 10s', seekBack: 'Back 10s', volUp: 'Volume up', volDown: 'Volume down', mute: 'Mute',
-  fullscreen: 'Full screen', lyricsEarlier: 'Lyrics earlier', lyricsLater: 'Lyrics later', nowPlaying: 'Now playing', repeat: 'Repeat mode', tabPrev: 'Previous tab', tabNext: 'Next tab',
+  fullscreen: 'Full screen', lyricsEarlier: 'Lyrics earlier', lyricsLater: 'Lyrics later', nowPlaying: 'Now playing', repeat: 'Repeat mode', shuffle: 'Shuffle mode', tabPrev: 'Previous tab', tabNext: 'Next tab',
 };
 const keyName = (k: string) => (k === ' ' ? 'Space' : k.length === 1 ? k.toUpperCase() : k.replace('Arrow', '').replace('Media', ''));
 

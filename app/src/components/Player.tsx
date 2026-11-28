@@ -9,8 +9,9 @@ import * as I from './Icons';
 
 export const fmt = (s: number) => {
   if (!Number.isFinite(s) || s < 0) s = 0;
-  const m = Math.floor(s / 60);
-  return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  const sec = String(Math.floor(s % 60)).padStart(2, '0');
+  if (s >= 3600) return `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${sec}`;
+  return `${Math.floor(s / 60)}:${sec}`;
 };
 
 /** Playback clock: re-renders ~20×/s from the active backend's real position. */
@@ -217,6 +218,7 @@ export function Player({ visible, onBack, onQueue, onMenu, fullscreen }: { visib
   const error = useStore((s) => s.error);
   const notice = useStore((s) => s.notice);
   const adShowing = useStore((s) => s.adShowing);
+  const shuffle = useStore((s) => s.shuffle);
   const repeat = useStore((s) => s.repeat);
   const settings = useStore((s) => s.settings);
   const updateSettings = useStore((s) => s.updateSettings);
@@ -314,6 +316,15 @@ export function Player({ visible, onBack, onQueue, onMenu, fullscreen }: { visib
           >
             <I.Repeat />
             {repeat === 'one' && <span className="badge">1</span>}
+          </button>
+          <button
+            className="ctl"
+            onClick={() => controller.cycleShuffle()}
+            aria-pressed={shuffle !== 'off'}
+            aria-label={`Shuffle: ${shuffle === 'off' ? 'off' : shuffle === 'shuffle' ? 'on' : 'magic'}`}
+            title={shuffle === 'off' ? 'Shuffle off (H)' : shuffle === 'shuffle' ? 'Shuffle: random order (H)' : 'Magic shuffle: with songs you may like (H)'}
+          >
+            {shuffle === 'magic' ? <I.Sparkle /> : <I.Shuffle />}
           </button>
           <button className="ctl" onClick={() => updateSettings((s) => (s.lyrics.show = !s.lyrics.show))} aria-pressed={settings.lyrics.show} aria-label="Show lyrics" title="Lyrics"><I.Lyrics /></button>
           <button className="ctl" onClick={onQueue} aria-label="Queue" title="Queue (I)"><I.List /></button>

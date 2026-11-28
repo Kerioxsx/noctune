@@ -1,10 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { useActions } from '../engine/input';
 import { play } from '../engine/sound';
 import { fmt } from './Player';
 import { Cross, Circle, Square, Triangle } from './Icons';
 import type { LibraryTrack } from '../lib/types';
+
+/** Fixed row height: lets long lists render only the rows on screen. */
+const ROW = 44;
+const norm = (v: string) => v.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').trim();
 
 export interface Row {
   key: string;
@@ -34,17 +38,75 @@ export function TrackList({ title, subtitle, rows, index, onIndex, onPlay, onClo
   const listRef = useRef<HTMLOListElement>(null);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dropAt, setDropAt] = useState<number | null>(null);
+  const [query, setQuery] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [scroll, setScroll] = useState(0);
+  const [viewH, setViewH] = useState(420);
+
+  // rows that match the search (original indices), so a 3,000-song playlist filters as you type
+  const visible = useMemo(() => {
+    const q = norm(query);
+    const all = rows.map((_, i) => i);
+    if (!q) return all;
+    return all.filter((i) => {
+      const r = rows[i];
+      const t = tracks[r.trackId];
+      return norm(`${t?.title ?? r.fallbackTitle ?? ''} ${t?.artist ?? r.fallbackArtist ?? ''} ${t?.album ?? ''}`).includes(q);
+    });
+  }, [query, rows, tracks]);
+  const pos = visible.indexOf(index);
+  useEffect(() => {
+    if (pos < 0 && visible.length) onIndex(visible[0]); // keep the selection on a matching song
+  }, [pos, visible, onIndex]);
 
   useEffect(() => {
-    const el = listRef.current?.children[index] as HTMLElement | undefined;
-    el?.scrollIntoView({ block: 'nearest' });
-  }, [index]);
+    const el = listRef.current;
+    if (!el) return;
+    const measure = () => setViewH(el.clientHeight || 420);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [rows.length === 0]);
+
+  // keep the selected row in view
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el || pos < 0) return;
+    const top = pos * ROW;
+    if (top < el.scrollTop) el.scrollTop = top;
+    else if (top + ROW > el.scrollTop + el.clientHeight) el.scrollTop = top + ROW - el.clientHeight;
+  }, [pos]);
+
+  // "/" jumps to the search field
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '/' || document.activeElement === searchRef.current) return;
+      const el = document.activeElement;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const move = (d: number) => {
+    if (!visible.length) return;
+    const np = Math.max(0, Math.min(visible.length - 1, (pos < 0 ? 0 : pos) + d));
+    if (visible[np] !== index) {
+      onIndex(visible[np]);
+      play('tick');
+    }
+  };
+  const first = Math.max(0, Math.floor(scroll / ROW) - 10);
+  const last = Math.min(visible.length, Math.ceil((scroll + viewH) / ROW) + 10);
 
   useActions((a, e) => {
     const n = rows.length;
     if (a === 'up' || a === 'down') {
       if (!n) return true;
-      if (e?.altKey && onMove) {
+      if (e?.altKey && onMove && !query) {
         const to = a === 'up' ? index - 1 : index + 1;
         if (to >= 0 && to < n) {
           onMove(index, to);
@@ -53,15 +115,11 @@ export function TrackList({ title, subtitle, rows, index, onIndex, onPlay, onClo
         }
         return true;
       }
-      const ni = Math.max(0, Math.min(n - 1, index + (a === 'up' ? -1 : 1)));
-      if (ni !== index) {
-        onIndex(ni);
-        play('tick');
-      }
+      move(a === 'up' ? -1 : 1);
       return true;
     }
     if (a === 'confirm') {
-      if (n) onPlay(index);
+      if (n && pos >= 0) onPlay(index);
       return true;
     }
     if (a === 'back' || a === 'info') {
@@ -88,13 +146,45 @@ export function TrackList({ title, subtitle, rows, index, onIndex, onPlay, onClo
     }}>
       <header>
         <b>{title}</b>
-        <span>{subtitle} · {rows.length} track{rows.length === 1 ? '' : 's'}{total ? ` · ${fmt(total)}` : ''}</span>
+        <span>{subtitle} · {rows.length.toLocaleString()} song{rows.length === 1 ? '' : 's'}{total ? ` · ${fmt(total)}` : ''}</span>
       </header>
+      {rows.length > 0 && (
+        <div className="tl-search">
+          <input
+            ref={searchRef}
+            type="search"
+            value={query}
+            placeholder="Search songs  /"
+            aria-label={`Search songs in ${title}`}
+            autoComplete="off"
+            spellCheck={false}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                move(e.key === 'ArrowUp' ? -1 : 1);
+              } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (pos >= 0) onPlay(index);
+              } else if (e.key === 'Escape') {
+                e.stopPropagation();
+                e.preventDefault();
+                if (query) setQuery('');
+                else searchRef.current?.blur();
+              }
+            }}
+          />
+          {query && <span className="tl-count" role="status">{visible.length ? `${visible.length.toLocaleString()} found` : 'No songs match'}</span>}
+        </div>
+      )}
       {rows.length === 0 ? (
         <div className="empty">{emptyText ?? 'No tracks yet.'}</div>
       ) : (
-        <ol ref={listRef} role="listbox" aria-activedescendant={`row-${index}`}>
-          {rows.map((r, i) => {
+        <ol ref={listRef} role="listbox" aria-label={`Songs in ${title}`} aria-activedescendant={pos >= 0 ? `row-${index}` : undefined} onScroll={(e) => setScroll(e.currentTarget.scrollTop)}>
+          {query && !visible.length && <li className="tl-none" aria-hidden>No songs match “{query}”. Press Esc to clear the search.</li>}
+          {first > 0 && <li className="tl-spacer" aria-hidden style={{ height: first * ROW }} />}
+          {visible.slice(first, last).map((i) => {
+            const r = rows[i];
             const t: LibraryTrack | undefined = tracks[r.trackId];
             const unavailable = !t || !t.available;
             return (
@@ -104,7 +194,7 @@ export function TrackList({ title, subtitle, rows, index, onIndex, onPlay, onClo
                 role="option"
                 aria-selected={i === index}
                 className={`${i === index ? 'sel' : ''}${unavailable ? ' unavail' : ''}${dragFrom === i ? ' dragging' : ''}${dropAt === i && dragFrom !== null && dragFrom !== i ? ' drop-above' : ''}`}
-                draggable={!!onMove}
+                draggable={!!onMove && !query}
                 onDragStart={(e) => {
                   setDragFrom(i);
                   e.dataTransfer.effectAllowed = 'move';
@@ -141,6 +231,7 @@ export function TrackList({ title, subtitle, rows, index, onIndex, onPlay, onClo
               </li>
             );
           })}
+          {last < visible.length && <li className="tl-spacer" aria-hidden style={{ height: (visible.length - last) * ROW }} />}
         </ol>
       )}
       <footer>
