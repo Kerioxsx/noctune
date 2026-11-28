@@ -1,4 +1,5 @@
 import { useStore, currentTrack, type RepeatMode, type ShuffleMode } from '../store';
+import { fillMagic, clearMagic } from './discover';
 import { bridge } from '../lib/bridge';
 import { audio } from './audio';
 import type { LibraryTrack, RemoteState } from '../lib/types';
@@ -656,6 +657,10 @@ class Controller {
   private spotify = new SpotifyBackend();
   active: Backend = this.media;
   private loadToken = 0;
+  /** changes every time a song (re)starts loading; lets the play counter count each listen once */
+  get playToken() {
+    return this.indexToken;
+  }
   /** what is actually playing for the current queue item (a fallback copy may stand in for it) */
   playing: LibraryTrack | null = null;
   private tried = new Set<string>();
@@ -678,10 +683,12 @@ class Controller {
     if (mode !== 'off' && trackIds.length > 1) {
       // the chosen song first, the rest in random order
       useStore.setState({ baseQueue: trackIds, queue: [trackIds[index], ...shuffled(trackIds.filter((_, i) => i !== index))], index: 0 });
+      if (mode === 'magic') void fillMagic();
       await this.loadIndex(0, opts.autoplay ?? true, opts.startAt ?? 0);
       return;
     }
     useStore.setState({ queue: trackIds, index, baseQueue: null });
+    if (mode === 'magic') void fillMagic();
     await this.loadIndex(index, opts.autoplay ?? true, opts.startAt ?? 0);
   }
 
@@ -698,6 +705,21 @@ class Controller {
       return;
     }
     this.autoplayNext = autoplay;
+    // A discovered song (magic shuffle, For you) only exists as its official video.
+    if (t.source === 'discover' && !t.youtubeId) {
+      const id = await officialVideo(t);
+      if (mine !== this.indexToken) return;
+      if (!id) {
+        useStore.setState({ notice: { text: `No official video found for “${t.title}”. Skipping it.` } });
+        const st = useStore.getState();
+        if (st.index + 1 < st.queue.length) void this.loadIndex(st.index + 1, autoplay);
+        else this.fail(`No official video found for “${t.title}”.`, { recover: false });
+        return;
+      }
+      t = { ...t, youtubeId: id };
+      const st = useStore.getState();
+      useStore.setState({ tracks: { ...st.tracks, [t.id]: t } });
+    }
     // Play the official music video when the song has one (a video file next to the song wins).
     if (s.settings.autoVideo && !t.youtubeId && !t.videoUrl && !t.isVideo) {
       const lookup = officialVideo(t);
@@ -877,6 +899,8 @@ class Controller {
       useStore.setState({ shuffle: mode });
     }
     if (s.settings.repeatPersist) s.updateSettings((x) => (x.shuffle = mode));
+    if (mode === 'magic') void fillMagic();
+    else if (s.shuffle === 'magic') clearMagic();
   }
   cycleShuffle() {
     const order: ShuffleMode[] = ['off', 'shuffle', 'magic'];

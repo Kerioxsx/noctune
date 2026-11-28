@@ -104,6 +104,7 @@ function browserBridge(): BridgeAPI {
       remote: desktopOnly,
     },
     lyrics: { lookup: async () => null },
+    discover: { similar: async () => [], releases: async () => [], releaseSongs: async () => [] },
     youtube: { status: async () => false, signIn: async () => false, signOut: async () => undefined },
     video: { lookup: async () => null },
     window: {
@@ -119,6 +120,7 @@ function browserBridge(): BridgeAPI {
         return () => document.removeEventListener('fullscreenchange', h);
       },
     },
+    systemNotify: async () => undefined,
     openExternal: async (url) => {
       window.open(url, '_blank', 'noopener');
     },

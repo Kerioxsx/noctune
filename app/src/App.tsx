@@ -17,6 +17,8 @@ import { SettingsHub } from './components/Settings';
 import { PlaylistEditor } from './components/PlaylistEditor';
 import { Welcome } from './components/Welcome';
 import { UpdateNotice } from './components/UpdateNotice';
+import { Notifier } from './components/Notifier';
+import { refreshFeed } from './engine/discover';
 import { isDesktop } from './lib/bridge';
 import { Cross, Circle, Triangle, Square, Shuffle, Sparkle } from './components/Icons';
 
@@ -41,7 +43,7 @@ export function App() {
   const s = useStore();
   const { screen, shelf, sel, settings } = s;
   const items = useMemo(() => stackItems(s, shelf), [s.albums, s.playlists, s.providerPlaylists, s.settings.demos, s.settings.sort, shelf, s.tracks]);
-  const selIndex = Math.min(sel[shelf], Math.max(0, items.length - 1));
+  const selIndex = Math.min(sel[shelf] ?? 0, Math.max(0, items.length - 1));
   const front: StackItem | undefined = items[selIndex];
   const nowTrack = currentTrack(s);
   const [glitch, setGlitch] = useState(false);
@@ -97,9 +99,10 @@ export function App() {
     play('tick');
   };
   const switchShelf = (to?: Shelf) => {
-    const next = to ?? (shelf === 'albums' ? 'playlists' : 'albums');
+    const next = to ?? (shelf === 'albums' ? 'playlists' : shelf === 'playlists' ? 'feed' : 'albums');
     if (next === shelf) return;
     useStore.setState({ shelf: next, trackList: { open: false, index: 0 } });
+    if (next === 'feed') void refreshFeed();
     play('tab');
     doGlitch();
   };
@@ -356,8 +359,8 @@ export function App() {
       if (a === 'up') return step(1); // up pulls the next sleeve forward from the stack
       if (a === 'down') return step(-1); // down sends it back
       if (screen === 'library') {
-        if (a === 'left') return switchShelf('albums');
-        if (a === 'right') return switchShelf('playlists');
+        if (a === 'left') return switchShelf(shelf === 'feed' ? 'playlists' : 'albums');
+        if (a === 'right') return switchShelf(shelf === 'albums' ? 'playlists' : 'feed');
         if (a === 'confirm') return void openItem();
         if (a === 'info') {
           if (!front || front.kind === 'new') return;
@@ -457,7 +460,12 @@ export function App() {
               {screen === 'library' && (
                 <>
                   <div className="hud-shade" aria-hidden />
-                  <div className="hud-title ui-text">{shelf === 'albums' ? 'Select a Soundtrack' : 'Select a Playlist'}</div>
+                  <div className="hud-title ui-text">{shelf === 'albums' ? 'Select a Soundtrack' : shelf === 'playlists' ? 'Select a Playlist' : 'For you'}</div>
+                  {shelf === 'feed' && !items.length && (
+                    <div className="feed-empty ui-text" role="status">
+                      {s.feedLoading ? 'Finding songs you may like…' : 'Your For you mixes appear here after you play some of your music. They come from the artists you listen to most and refresh every day.'}
+                    </div>
+                  )}
                   {front && (
                     <div className="now-label ui-text" aria-live="polite">
                       <div className="t">{front.title}</div>
@@ -467,6 +475,7 @@ export function App() {
                   <div className="shelf-switch ui-text" role="group" aria-label="Shelf">
                     <button aria-pressed={shelf === 'albums'} onClick={() => switchShelf('albums')}>Albums</button>
                     <button aria-pressed={shelf === 'playlists'} onClick={() => switchShelf('playlists')}>Playlists</button>
+                    <button aria-pressed={shelf === 'feed'} onClick={() => switchShelf('feed')}>For you</button>
                   </div>
                 </>
               )}
@@ -531,6 +540,7 @@ export function App() {
             />
           )}
           {(screen === 'library' || screen === 'confirm') && !welcome && <UpdateNotice />}
+          <Notifier onPlay={(ids) => launch(ids, 0)} />
           {s.editing && <PlaylistEditor id={s.editing} onClose={() => useStore.setState({ editing: null })} />}
           {menu && <Menu items={menu.items} x={menu.x} y={menu.y} onClose={() => setMenu(null)} />}
           {s.toast && <div className={`toast ${s.toast.tone}`} role="status">{s.toast.text}</div>}
@@ -545,7 +555,9 @@ function InfoPanel({ screen, item }: { screen: string; item?: StackItem }) {
   const shuffle = useStore((s) => s.shuffle);
   const text =
     screen === 'confirm'
-      ? item?.kind === 'playlist'
+      ? item?.kind === 'mix'
+        ? 'Songs picked for you from artists like the ones you play. Each plays as its official video.'
+        : item?.kind === 'playlist'
         ? 'A playlist plays like a disc. Open the song list to search it or start anywhere.'
         : 'Ready to play. Open the song list to search it or start from another song.'
       : 'Choose your soundtrack. Each record sets a different atmosphere and shapes the night ahead.';

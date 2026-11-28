@@ -49,8 +49,11 @@ code { font-size: 0.9em; padding: 1px 5px; border-radius: 4px; background: rgba(
       <tr><td>Connecting SoundCloud</td><td>SoundCloud</td><td>The same: sign-in on SoundCloud's page, then reading your likes and playlists and streaming the tracks you play.</td></tr>
       <tr><td>Adding an Apple Music token</td><td>Apple</td><td>The developer token you paste, to check that it works.</td></tr>
       <tr><td>Finding lyrics (on by default; Settings → Settings → Find lyrics online)</td><td>LRCLIB (lrclib.net)</td><td>The title, artist, album and length of a song, once, to look up its timed lyrics.</td></tr>
-      <tr><td>Finding official videos (on by default; Settings → Settings → Play official music videos)</td><td>MusicBrainz (musicbrainz.org)</td><td>The title and artist of a song, once, to find the official video its editors have linked.</td></tr>
-      <tr><td>Playing an official video</td><td>YouTube (youtube-nocookie.com)</td><td>The video's ID when it plays. The player is YouTube's own, so YouTube receives your IP address like any embedded video.</td></tr>
+      <tr><td>Finding official videos (on by default; Settings → Settings → Play official music videos)</td><td>YouTube, then MusicBrainz (musicbrainz.org)</td><td>The title and artist of a song, once, as a search, to find the artist's official video.</td></tr>
+      <tr><td>Playing an official video</td><td>YouTube</td><td>The video plays in YouTube's own player, or on YouTube's own page inside Noctune for videos that only play on YouTube. YouTube receives your IP address and sets its cookies like on youtube.com (Noctune picks "Reject all" where YouTube asks), and may show ads. That page runs separately from the rest of Noctune and cannot read your library.</td></tr>
+      <tr><td>Signing in to YouTube (optional; Settings → Connections)</td><td>Google</td><td>You sign in on Google's own page; Noctune never sees your password. Videos then play from your account. Sign out, or Delete all my data, removes the sign-in.</td></tr>
+      <tr><td>Magic shuffle, For you and new release alerts</td><td>Deezer (api.deezer.com)</td><td>The names of the artists you listen to most (or that are in the album you shuffle), to find similar artists, their best-known songs and new releases. No account and nothing about you.</td></tr>
+      <tr><td>Listening history</td><td>Nobody</td><td>Noctune counts how often you play each song, on this computer only, to build For you and the release alerts. Delete all my data erases it.</td></tr>
       <tr><td>Updates (automatic)</td><td>GitHub</td><td>A few times a day Noctune asks GitHub whether a newer version exists, and downloads it when you choose Update. GitHub sees your IP address and the app's version.</td></tr>
     </tbody>
   </table>

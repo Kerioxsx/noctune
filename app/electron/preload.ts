@@ -10,6 +10,11 @@ contextBridge.exposeInMainWorld('noctune', {
   platform: process.platform,
   // passed by the main process, which knows the installed app's version
   version: process.argv.find((a) => a.startsWith('--noctune-version='))?.split('=')[1] ?? '',
+  discover: {
+    similar: (seeds: string[], known: string[], limit?: number) => invoke('discover:similar', seeds, known, limit),
+    releases: (artists: string[]) => invoke('discover:releases', artists),
+    releaseSongs: (key: string) => invoke('discover:releaseSongs', key),
+  },
   youtube: {
     status: () => invoke('youtube:status'),
     signIn: () => invoke('youtube:signIn'),
@@ -60,6 +65,7 @@ contextBridge.exposeInMainWorld('noctune', {
     },
   },
   openExternal: (url: string) => invoke('shell:openExternal', url),
+  systemNotify: (title: string, body: string) => invoke('app:notify', title, body),
   clearCache: () => invoke('app:clearCache'),
   updates: {
     state: () => invoke('update:state'),

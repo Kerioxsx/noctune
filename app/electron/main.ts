@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, screen, session } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, screen, session, Notification } from 'electron';
 import { join, basename } from 'node:path';
 import { promises as fs } from 'node:fs';
 import { registerSchemes, handleProtocol, allowRoot, allowPath, mediaUrl } from './protocol';
@@ -7,6 +7,7 @@ import * as library from './library';
 import * as providers from './providers';
 import { findLyrics, findOfficialVideo, type SongQuery } from './lookups';
 import * as youtube from './youtube';
+import * as discover from './discover';
 import { initUpdater, checkForUpdates, downloadUpdate, installUpdate, getUpdateState } from './updater';
 
 registerSchemes();
@@ -185,7 +186,7 @@ function registerIpc() {
     return (await fs.readFile(r.filePaths[0], 'utf8')).slice(0, 2_000_000);
   });
 
-  const STORE_KEYS = new Set(['settings', 'playlists', 'session', 'lyrics-imports', 'profile']);
+  const STORE_KEYS = new Set(['settings', 'playlists', 'session', 'lyrics-imports', 'profile', 'plays', 'feed', 'notified']);
   ipcMain.handle('store:get', (_e, k: string, f: unknown) => (STORE_KEYS.has(k) ? readJson(k, f) : f));
   ipcMain.handle('store:set', (_e, k: string, v: unknown) => (STORE_KEYS.has(k) ? writeJson(k, v) : undefined));
 
@@ -208,6 +209,11 @@ function registerIpc() {
     const sq = songQuery(q);
     return sq ? findLyrics(sq) : null;
   });
+  // Discovery: only artist names leave the computer (to Deezer's public catalogue).
+  const names = (v: unknown, max: number) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.length > 0 && x.length < 300).slice(0, max) : []);
+  ipcMain.handle('discover:similar', (_e, seeds: unknown, known: unknown, limit: unknown) => discover.similarSongs(names(seeds, 10), names(known, 20000), Math.min(100, Math.max(1, Number(limit) || 40))));
+  ipcMain.handle('discover:releases', (_e, artists: unknown) => discover.newReleases(names(artists, 15)));
+  ipcMain.handle('discover:releaseSongs', (_e, key: unknown) => (typeof key === 'string' ? discover.releaseSongs(key) : []));
   ipcMain.handle('youtube:status', () => youtube.signedIn());
   ipcMain.handle('youtube:signIn', () => youtube.signIn(win));
   ipcMain.handle('youtube:signOut', () => youtube.signOut());
@@ -239,6 +245,15 @@ function registerIpc() {
     return win.isFullScreen();
   });
   ipcMain.handle('window:isFullscreen', () => win?.isFullScreen() ?? false);
+  ipcMain.handle('app:notify', (_e, title: unknown, body: unknown) => {
+    if (typeof title !== 'string' || typeof body !== 'string' || !Notification.isSupported()) return;
+    const n = new Notification({ title: title.slice(0, 120), body: body.slice(0, 300), silent: true }); // the app plays its own chime
+    n.on('click', () => {
+      win?.show();
+      win?.focus();
+    });
+    n.show();
+  });
   ipcMain.handle('shell:openExternal', (_e, url: string) => {
     // https links, and the bare spotify: scheme to open the Spotify app
     if (/^https:\/\//.test(url) || url === 'spotify:') return shell.openExternal(url);
@@ -249,7 +264,7 @@ function registerIpc() {
   // Erases everything Noctune stored on this computer, then restarts. Music files are never touched.
   ipcMain.handle('app:deleteAllData', async () => {
     const dir = dataDir();
-    const names = ['settings', 'playlists', 'session', 'lyrics-imports', 'profile', 'library-config', 'library-index', 'providers', 'secrets', 'window'];
+    const names = ['settings', 'playlists', 'session', 'lyrics-imports', 'profile', 'library-config', 'library-index', 'providers', 'secrets', 'window', 'plays', 'feed', 'notified', 'lyrics-cache', 'video-cache', 'discover-cache'];
     await Promise.all(names.map((n) => fs.rm(join(dir, `${n}.json`), { force: true })));
     await fs.rm(join(dir, 'artwork'), { recursive: true, force: true });
     await fs.rm(join(dir, 'covers'), { recursive: true, force: true });

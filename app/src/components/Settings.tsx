@@ -186,7 +186,8 @@ function GeneralTab() {
         <Toggle label="Remember repeat mode" hint="Off: repeat resets each session." checked={s.repeatPersist} onChange={(v) => update((x) => (x.repeatPersist = v))} />
         <Toggle label="Resume last session" hint="Reopens the last queue, paused where you left it." checked={s.resumeSession} onChange={(v) => update((x) => (x.resumeSession = v))} />
         <Toggle label="Find lyrics online" hint="Looks up timed lyrics on LRCLIB (lrclib.net) for songs that have none, and saves them so they work offline. Sends the song's title, artist, album and length to LRCLIB." checked={s.lyrics.community} onChange={(v) => update((x) => (x.lyrics.community = v))} />
-        <Toggle label="Play official music videos" hint="Finds each song's official video through MusicBrainz (musicbrainz.org) and plays it in YouTube's player at the best quality your screen and connection allow. Sends the song's title and artist to MusicBrainz; the video comes from YouTube." checked={s.autoVideo} onChange={(v) => update((x) => (x.autoVideo = v))} />
+        <Toggle label="Play official music videos" hint="Finds each song's official video on YouTube (searching for the song's title and artist) and plays it at the best quality your screen and connection allow. Videos the owner keeps on YouTube only play through YouTube's own page inside Noctune." checked={s.autoVideo} onChange={(v) => update((x) => (x.autoVideo = v))} />
+        <Toggle label="New release alerts" hint="A pop-up with a chime when an artist you listen to most releases something. Checks Deezer's public catalogue with those artists' names twice a day." checked={s.releaseAlerts} onChange={(v) => update((x) => (x.releaseAlerts = v))} />
       </Group>
       <Group title="Privacy & data">
         <div className="row"><div className="row-l"><span>Diagnostics</span><small>Noctune sends no analytics or crash reports.</small></div></div>

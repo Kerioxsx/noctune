@@ -351,3 +351,18 @@ input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 11p
 .tl-count { position: absolute; right: 24px; top: 50%; transform: translateY(-30%); font: 10.5px var(--mono); color: var(--cream-dim); pointer-events: none; }
 .tracklist li.tl-spacer { padding: 0; height: auto; display: block; pointer-events: none; }
 .tracklist li.tl-none { display: block; height: auto; padding: 18px 14px; color: var(--cream-dim); cursor: default; }
+
+.feed-empty { position: absolute; left: 590px; top: 470px; width: 520px; font: 12px/1.6 var(--mono); color: var(--cream); text-shadow: 0 0 2px #000, 0 0 10px #000; }
+.notifier { position: absolute; right: 28px; bottom: 96px; width: 340px; display: flex; flex-direction: column; gap: 10px; z-index: 30; }
+.alert { display: grid; grid-template-columns: 52px 1fr; gap: 12px; align-items: center; padding: 12px; border: 1.5px solid var(--line); border-radius: 8px; background: rgba(8, 9, 7, 0.92); color: var(--cream); box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5); animation: alert-in 320ms var(--ease-out); }
+.alert img, .alert .art { width: 52px; height: 52px; border-radius: 4px; object-fit: cover; background: rgba(236, 230, 207, 0.08); display: grid; place-items: center; }
+.alert .art svg { width: 24px; height: 24px; }
+.alert b { display: block; font: 600 14px/1.2 var(--cond); text-transform: uppercase; letter-spacing: 0.03em; }
+.alert p { margin: 3px 0 8px; font: 11.5px/1.45 var(--mono); color: var(--cream-dim); overflow-wrap: anywhere; }
+.alert .row { display: flex; gap: 8px; }
+.alert .row button { font: 500 10.5px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 9px; border: 1.5px solid var(--line-soft); border-radius: 4px; color: var(--cream); }
+.alert .row button.primary { background: var(--cream); color: #111; border-color: var(--cream); }
+.alert .row button:focus-visible { outline: 2px solid var(--cream); outline-offset: 2px; }
+@keyframes alert-in { from { opacity: 0; transform: translateY(12px) scale(0.98); } }
+@media (prefers-reduced-motion: reduce) { .alert { animation: none; } }
+.alert .row { justify-content: flex-start; padding: 0; border: 0; min-height: 0; }

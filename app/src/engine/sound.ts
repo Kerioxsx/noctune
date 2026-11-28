@@ -4,7 +4,7 @@ import { audio } from './audio';
  * Original interface sounds, synthesized live (no samples). Short, soft and
  * immediate. Repeats are throttled so a held direction never stacks voices.
  */
-export type Cue = 'tick' | 'confirm' | 'back' | 'open' | 'error' | 'tab';
+export type Cue = 'tick' | 'confirm' | 'back' | 'open' | 'error' | 'tab' | 'notify';
 
 let last = 0;
 let lastCue: Cue | null = null;
@@ -46,6 +46,12 @@ export function play(cue: Cue) {
       break;
     case 'error':
       blip(t, 190, 160, 0.11, 0.26, 'square', 900);
+      break;
+    case 'notify':
+      // a soft three-note chime, like a console's message arrival
+      blip(t, 880, 880, 0.09, 0.2, 'sine');
+      blip(t + 0.1, 1175, 1175, 0.09, 0.2, 'sine');
+      blip(t + 0.2, 1760, 1760, 0.22, 0.17, 'sine');
       break;
   }
 }
