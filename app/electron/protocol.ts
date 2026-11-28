@@ -1,7 +1,7 @@
 import { protocol } from 'electron';
 import { createReadStream, promises as fs } from 'node:fs';
 import { Readable } from 'node:stream';
-import { extname } from 'node:path';
+import { extname, resolve, sep } from 'node:path';
 
 /**
  * noctune://media/<base64url(path)> serves a local file the user added to the
@@ -11,15 +11,20 @@ import { extname } from 'node:path';
 const allowed = new Set<string>();
 const allowedRoots = new Set<string>();
 
+/** Paths are compared fully resolved, so "folder/../.." can never step outside an allowed folder. */
 export function allowPath(p: string) {
-  allowed.add(p);
+  allowed.add(resolve(p));
 }
 export function allowRoot(p: string) {
-  allowedRoots.add(p.endsWith('/') || p.endsWith('\\') ? p : p + (p.includes('\\') ? '\\' : '/'));
+  const r = resolve(p);
+  allowedRoots.add(r.endsWith(sep) ? r : r + sep);
+}
+function isAllowed(resolved: string) {
+  return allowed.has(resolved) || [...allowedRoots].some((root) => resolved.startsWith(root));
 }
 
 export function mediaUrl(path: string) {
-  allowed.add(path);
+  allowed.add(resolve(path));
   return `noctune://media/${Buffer.from(path, 'utf8').toString('base64url')}`;
 }
 
@@ -41,19 +46,26 @@ type Extra = (url: URL, req: Request) => Promise<Response | null>;
 export function handleProtocol(extra?: Extra) {
   protocol.handle('noctune', async (req) => {
     const url = new URL(req.url);
-    const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Range', 'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges' };
+    // Only the app's own page may read these responses. Embedded third-party frames
+    // (the YouTube player) send their own origin and are refused.
+    const origin = req.headers.get('origin');
+    const dev = process.env.VITE_DEV_SERVER_URL ? new URL(process.env.VITE_DEV_SERVER_URL).origin : null;
+    const fromApp = !origin || origin === 'null' || origin === 'file://' || origin.startsWith('noctune://') || origin === dev;
+    if (!fromApp) return new Response('Forbidden', { status: 403 });
+    const cors = { 'Access-Control-Allow-Origin': origin && origin !== 'null' ? origin : '*', 'Access-Control-Allow-Headers': 'Range', 'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges', Vary: 'Origin' };
     if (url.host !== 'media') {
       const r = extra ? await extra(url, req) : null;
       return r ?? new Response('Not found', { status: 404, headers: cors });
     }
     let path: string;
     try {
-      path = Buffer.from(url.pathname.slice(1), 'base64url').toString('utf8');
+      const raw = Buffer.from(url.pathname.slice(1), 'base64url').toString('utf8');
+      if (!raw || raw.includes('\0')) throw new Error('bad path');
+      path = resolve(raw);
     } catch {
       return new Response('Bad request', { status: 400, headers: cors });
     }
-    const permitted = allowed.has(path) || [...allowedRoots].some((r) => path.startsWith(r));
-    if (!permitted) return new Response('Forbidden', { status: 403, headers: cors });
+    if (!isAllowed(path)) return new Response('Forbidden', { status: 403, headers: cors });
     let size: number;
     try {
       size = (await fs.stat(path)).size;

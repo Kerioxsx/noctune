@@ -44,6 +44,8 @@ export function installKeyboard() {
       c(e.key);
       return;
     }
+    // Tab always moves focus, so keyboard users can reach every control and leave an embedded demo.
+    if (e.key === 'Tab') return;
     const active = document.activeElement;
     if (TEXT_INPUT(active) && e.key !== 'Escape') return;
     // Native controls keep their own arrow behaviour (range sliders etc.)

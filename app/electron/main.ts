@@ -5,6 +5,8 @@ import { registerSchemes, handleProtocol, allowRoot, allowPath, mediaUrl } from 
 import { readJson, writeJson, dataDir } from './store';
 import * as library from './library';
 import * as providers from './providers';
+import { findLyrics, findOfficialVideo, type SongQuery } from './lookups';
+import { initUpdater, checkForUpdates, downloadUpdate, installUpdate, getUpdateState } from './updater';
 
 registerSchemes();
 
@@ -21,7 +23,10 @@ interface WindowState {
 }
 
 async function createWindow() {
-  const saved = await readJson<WindowState>('window', { width: 1280, height: 720 });
+  // Saved state is untrusted input: a half-written or edited file must never stop the app opening.
+  const raw = await readJson<Partial<WindowState>>('window', {});
+  const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
+  const saved: WindowState = { width: num(raw.width, 1280), height: num(raw.height, 720), x: typeof raw.x === 'number' && Number.isFinite(raw.x) ? raw.x : undefined, y: typeof raw.y === 'number' && Number.isFinite(raw.y) ? raw.y : undefined, maximized: raw.maximized === true, fullscreen: raw.fullscreen === true };
   // Only restore a position that is still on a connected display.
   const visible =
     saved.x !== undefined &&
@@ -48,6 +53,7 @@ async function createWindow() {
       nodeIntegration: false,
       sandbox: true,
       autoplayPolicy: 'no-user-gesture-required',
+      additionalArguments: [`--noctune-version=${app.getVersion()}`],
     },
   });
   if (saved.maximized) win.maximize();
@@ -186,24 +192,39 @@ function registerIpc() {
   ipcMain.handle('providers:library', (_e, id) => providers.library(id));
   ipcMain.handle('providers:playlistTracks', (_e, id) => providers.playlistTracks(id));
   ipcMain.handle('providers:remote', (_e, cmd) => providers.remote(cmd));
-  ipcMain.handle('providers:spotifyToken', () => providers.spotifyAccessToken());
 
   // Community lyrics (LRCLIB). Only called when the user turns it on in Settings.
-  ipcMain.handle('lyrics:lookup', async (_e, q: { title: string; artist: string; album?: string; duration?: number }) => {
-    const u = new URL('https://lrclib.net/api/get');
-    u.searchParams.set('track_name', q.title);
-    u.searchParams.set('artist_name', q.artist);
-    if (q.album) u.searchParams.set('album_name', q.album);
-    if (q.duration) u.searchParams.set('duration', String(Math.round(q.duration)));
-    try {
-      const res = await fetch(u, { headers: { 'User-Agent': 'Noctune (https://github.com/kerioxsx/noctune)' } });
-      if (!res.ok) return null;
-      const j = (await res.json()) as { syncedLyrics?: string | null; plainLyrics?: string | null };
-      return j.syncedLyrics ?? j.plainLyrics ?? null;
-    } catch {
-      return null;
-    }
+  // Online lookups (LRCLIB lyrics, MusicBrainz official videos); renderer settings decide whether they run.
+  const songQuery = (q: unknown): SongQuery | null => {
+    const o = q as Partial<SongQuery>;
+    if (!o || typeof o.title !== 'string' || typeof o.artist !== 'string' || !o.title.trim() || !o.artist.trim() || o.artist === 'Unknown artist') return null;
+    return { title: o.title.slice(0, 200), artist: o.artist.slice(0, 200), album: typeof o.album === 'string' ? o.album.slice(0, 200) : undefined, duration: typeof o.duration === 'number' ? o.duration : undefined };
+  };
+  ipcMain.handle('lyrics:lookup', async (_e, q: unknown) => {
+    const sq = songQuery(q);
+    return sq ? findLyrics(sq) : null;
   });
+  ipcMain.handle('video:lookup', async (_e, q: unknown) => {
+    const sq = songQuery(q);
+    return sq ? findOfficialVideo(sq) : null;
+  });
+  // First launch: add the system Music folder if it exists, so the user's songs appear straight away.
+  ipcMain.handle('library:autoDetect', async () => {
+    const cfg = await library.getConfig();
+    if (cfg.folders.length || cfg.files.length) return null;
+    const found = await library.defaultMusicFolders(app.getPath('music'));
+    if (!found.length) return null;
+    cfg.folders.push(...found);
+    found.forEach(allowRoot);
+    await library.saveConfig(cfg);
+    return { ...(await library.scan(send)), folders: found };
+  });
+
+  // in-app updates
+  ipcMain.handle('update:state', () => getUpdateState());
+  ipcMain.handle('update:check', () => checkForUpdates());
+  ipcMain.handle('update:download', () => downloadUpdate());
+  ipcMain.handle('update:install', () => installUpdate());
 
   ipcMain.handle('window:toggleFullscreen', () => {
     if (!win) return false;
@@ -218,13 +239,41 @@ function registerIpc() {
   ipcMain.handle('app:clearCache', async () => {
     await session.defaultSession.clearCache();
   });
+  // Erases everything Noctune stored on this computer, then restarts. Music files are never touched.
+  ipcMain.handle('app:deleteAllData', async () => {
+    const dir = dataDir();
+    const names = ['settings', 'playlists', 'session', 'lyrics-imports', 'profile', 'library-config', 'library-index', 'providers', 'secrets', 'window'];
+    await Promise.all(names.map((n) => fs.rm(join(dir, `${n}.json`), { force: true })));
+    await fs.rm(join(dir, 'artwork'), { recursive: true, force: true });
+    await fs.rm(join(dir, 'covers'), { recursive: true, force: true });
+    await session.defaultSession.clearStorageData();
+    await session.defaultSession.clearCache();
+    app.relaunch();
+    app.exit(0);
+  });
 }
 
 app.whenReady().then(async () => {
+  // Electron grants web permissions (microphone, camera, location, notifications...) by default.
+  // Noctune needs none of them, so refuse everything except going full screen.
+  const ses = session.defaultSession;
+  ses.setPermissionRequestHandler((_wc, permission, cb) => cb(permission === 'fullscreen'));
+  ses.setPermissionCheckHandler((_wc, permission) => permission === 'fullscreen');
+  // YouTube refuses embeds that arrive without a referrer, which a local app page never sends.
+  // Identify the embed as coming from Noctune's website.
+  ses.webRequest.onBeforeSendHeaders({ urls: ['https://www.youtube-nocookie.com/embed/*'] }, (details, cb) => {
+    cb({ requestHeaders: { ...details.requestHeaders, Referer: 'https://kerioxsx.github.io/noctune/' } });
+  });
+
   // Re-allow paths the user added in earlier sessions.
   const cfg = await library.getConfig();
   cfg.folders.forEach(allowRoot);
   cfg.files.forEach(allowPath);
+  // videos linked to tracks by hand live outside the library folders; re-allow them too
+  for (const o of Object.values(cfg.overrides)) {
+    const m = typeof o?.videoUrl === 'string' && /^noctune:\/\/media\/([\w-]+)$/.exec(o.videoUrl);
+    if (m) allowPath(Buffer.from(m[1], 'base64url').toString('utf8'));
+  }
   allowRoot(join(dataDir(), 'artwork'));
   allowRoot(join(dataDir(), 'covers'));
   handleProtocol(async (url, req) => {
@@ -239,6 +288,7 @@ app.whenReady().then(async () => {
   });
   registerIpc();
   await createWindow();
+  initUpdater();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow();
   });

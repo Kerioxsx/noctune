@@ -19,7 +19,9 @@ interface LibraryConfig {
 }
 
 export async function getConfig(): Promise<LibraryConfig> {
-  return readJson<LibraryConfig>('library-config', { folders: [], files: [], overrides: {} });
+  const c = await readJson<Partial<LibraryConfig>>('library-config', {});
+  const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+  return { folders: strings(c.folders), files: strings(c.files), overrides: c.overrides && typeof c.overrides === 'object' ? c.overrides : {} };
 }
 export async function saveConfig(c: LibraryConfig) {
   await writeJson('library-config', c);
@@ -55,10 +57,16 @@ export async function scan(onProgress?: (done: number, total: number) => void): 
   const { parseFile } = (await import('music-metadata')) as unknown as { parseFile: (p: string, o?: object) => Promise<import('music-metadata').IAudioMetadata> };
   const tracks: LibraryTrack[] = [];
   const report: ScanReport = { scanned: 0, added: 0, failed: [], unsupported: 0 };
+  // Lookup tables built once, so large libraries scan in linear time.
   const videosByStem = new Map<string, string>();
+  const audioStems = new Set<string>();
+  const lrcByStem = new Map<string, string>();
   for (const f of media) {
-    if (VIDEO_EXT.includes(extname(f).toLowerCase())) videosByStem.set(stem(f), f);
+    const e = extname(f).toLowerCase();
+    if (VIDEO_EXT.includes(e) && e !== '.webm') videosByStem.set(stem(f), f);
+    if (AUDIO_EXT.includes(e) && e !== '.webm') audioStems.add(stem(f));
   }
+  for (const l of lyricFiles) lrcByStem.set(stem(l), l);
 
   let done = 0;
   for (const file of media) {
@@ -66,11 +74,12 @@ export async function scan(onProgress?: (done: number, total: number) => void): 
     onProgress?.(done, media.length);
     report.scanned++;
     const ext = extname(file).toLowerCase();
-    const isVideo = VIDEO_EXT.includes(ext) && !(ext === '.webm' && !videosByStem.has(stem(file)));
     // A video that shares its name with an audio file is that track's music video, not a separate item.
-    if (isVideo && media.some((m) => m !== file && AUDIO_EXT.includes(extname(m).toLowerCase()) && stem(m) === stem(file))) continue;
+    if (VIDEO_EXT.includes(ext) && ext !== '.webm' && audioStems.has(stem(file))) continue;
     try {
       const meta = await parseFile(file, { duration: true, skipCovers: false });
+      // .webm/.mkv/.mp4 can hold audio only; trust what the file contains, not its extension
+      const isVideo = VIDEO_EXT.includes(ext) && (meta.format as { hasVideo?: boolean }).hasVideo !== false && !(ext === '.webm' && !(meta.format as { hasVideo?: boolean }).hasVideo);
       const c = meta.common;
       const id = `local:${hash(file)}`;
       let artwork: string | undefined;
@@ -86,18 +95,19 @@ export async function scan(onProgress?: (done: number, total: number) => void): 
       } else {
         artwork = await folderArt(dirname(file));
       }
-      const lrc = [...lyricFiles].find((l) => stem(l) === stem(file));
+      const lrc = lrcByStem.get(stem(file));
       const video = isVideo ? file : videosByStem.get(stem(file));
       const embedded = c.lyrics?.[0];
+      const fromName = parseFileName(basename(file, ext));
       const t: LibraryTrack = {
         id,
         source: 'local',
-        title: c.title || basename(file, ext),
-        artist: c.artist || c.albumartist || 'Unknown artist',
+        title: c.title || fromName.title,
+        artist: c.artist || c.albumArtist || fromName.artist || 'Unknown artist',
         album: c.album || (isVideo ? 'Videos' : basename(dirname(file))),
-        albumArtist: c.albumartist || c.artist || undefined,
-        number: c.track?.no ?? undefined,
-        disc: c.disk?.no ?? undefined,
+        albumArtist: c.albumArtist || c.artist || undefined,
+        number: c.trackNumber ?? undefined,
+        disc: c.discNumber ?? undefined,
         year: c.year ?? undefined,
         duration: meta.format.duration ?? undefined,
         artwork,
@@ -120,6 +130,28 @@ export async function scan(onProgress?: (done: number, total: number) => void): 
   const index: LibraryIndex = { tracks, albums: groupAlbums(tracks), scannedAt: Date.now(), folders: cfg.folders, files: cfg.files };
   await writeJson('library-index', index);
   return { index, report };
+}
+
+/**
+ * Untagged files are often named "Artist - Title", "01 - Title" or "01. Artist - Title".
+ * Read what the name gives so the song can still be matched for lyrics and videos.
+ */
+export function parseFileName(name: string): { title: string; artist?: string } {
+  const clean = name.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+  const noNum = clean.replace(/^\(?\d{1,3}\)?[\s.)-]+(?=\D)/, '').trim();
+  const parts = noNum.split(/\s+[-–—]\s+/);
+  if (parts.length >= 2 && parts[0] && parts[1]) return { artist: parts[0].trim(), title: parts.slice(1).join(' - ').replace(/\s*\((official|lyrics?|audio|video|hd|hq)[^)]*\)\s*$/i, '').trim() };
+  return { title: noNum || clean };
+}
+
+/** Folders worth scanning on first launch: the system Music folder. */
+export async function defaultMusicFolders(musicDir: string): Promise<string[]> {
+  try {
+    const st = await fs.stat(musicDir);
+    return st.isDirectory() ? [musicDir] : [];
+  } catch {
+    return [];
+  }
 }
 
 function stem(f: string) {
@@ -165,6 +197,6 @@ function groupAlbums(tracks: LibraryTrack[]): LibraryAlbum[] {
 
 export async function loadIndex(): Promise<LibraryIndex> {
   const cfg = await getConfig();
-  const idx = await readJson<LibraryIndex>('library-index', { tracks: [], albums: [], scannedAt: 0, folders: [], files: [] });
-  return { ...idx, folders: cfg.folders, files: cfg.files };
+  const idx = await readJson<Partial<LibraryIndex>>('library-index', {});
+  return { tracks: Array.isArray(idx.tracks) ? idx.tracks : [], albums: Array.isArray(idx.albums) ? idx.albums : [], scannedAt: typeof idx.scannedAt === 'number' ? idx.scannedAt : 0, folders: cfg.folders, files: cfg.files };
 }

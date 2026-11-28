@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useStore, stackItems, currentTrack, playlists, type Shelf, type StackItem } from './store';
 import { useActions, useReducedMotion } from './engine/input';
 import { play } from './engine/sound';
-import { controller } from './engine/playback';
+import { controller, prefetchSongs } from './engine/playback';
 import { setUiSound } from './engine/sound';
 import { audio } from './engine/audio';
 import { bridge } from './lib/bridge';
@@ -15,6 +15,9 @@ import { Player } from './components/Player';
 import { TrackList, Menu, type MenuItem, type Row } from './components/TrackList';
 import { SettingsHub } from './components/Settings';
 import { PlaylistEditor } from './components/PlaylistEditor';
+import { Welcome } from './components/Welcome';
+import { UpdateNotice } from './components/UpdateNotice';
+import { isDesktop } from './lib/bridge';
 import { Cross, Circle, Triangle, Square } from './components/Icons';
 
 const STAGE_W = 1280;
@@ -37,13 +40,22 @@ export function App() {
   const reduced = useReducedMotion();
   const s = useStore();
   const { screen, shelf, sel, settings } = s;
-  const items = useMemo(() => stackItems(s, shelf), [s.albums, s.playlists, s.providerPlaylists, s.settings.showDemo, s.settings.sort, shelf, s.tracks]);
+  const items = useMemo(() => stackItems(s, shelf), [s.albums, s.playlists, s.providerPlaylists, s.settings.demos, s.settings.sort, shelf, s.tracks]);
   const selIndex = Math.min(sel[shelf], Math.max(0, items.length - 1));
   const front: StackItem | undefined = items[selIndex];
   const nowTrack = currentTrack(s);
   const [glitch, setGlitch] = useState(false);
   const [menu, setMenu] = useState<{ items: MenuItem[]; x: number; y: number } | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [welcome, setWelcome] = useState(false);
+  // first launch of the desktop app: explain how to get your own music in
+  useEffect(() => {
+    if (s.ready && isDesktop && !s.settings.onboarded) setWelcome(true);
+  }, [s.ready]);
+  const closeWelcome = () => {
+    setWelcome(false);
+    if (!useStore.getState().settings.onboarded) s.updateSettings((x) => (x.onboarded = true));
+  };
   const [tones, setTones] = useState<Tones>({ status: 'dark', hud: 'dark', prompt: 'dark', mini: 'dark' });
   const launchTimer = useRef<number[]>([]);
 
@@ -110,9 +122,10 @@ export function App() {
       return;
     }
     if (front.kind === 'playlist' && front.id.startsWith('spotify-playlist:')) {
-      // provider playlists load their track list on demand
+      // provider playlists load their songs on demand (a big one can take a few seconds)
       const p = s.providerPlaylists.find((x) => x.id === front.id);
       if (p && !p.entries.length) {
+        if (p.total) s.notify(`Loading ${p.total.toLocaleString()} songs from Spotify…`, 'info');
         try {
           const ts = await bridge.providers.playlistTracks(front.id);
           const tracks = { ...useStore.getState().tracks };
@@ -121,13 +134,22 @@ export function App() {
             tracks,
             providerPlaylists: useStore.getState().providerPlaylists.map((x) => (x.id === front.id ? { ...x, entries: ts.map((t, i) => ({ key: `${t.id}:${i}`, trackId: t.id, addedAt: 0, title: t.title, artist: t.artist })) } : x)),
           });
+          if (!ts.length) {
+            play('error');
+            s.notify(p.total ? 'Spotify did not share the songs in this playlist. Spotify only shares playlists you created or collaborate on; save the songs to Liked Songs or copy the playlist in Spotify to play it here.' : 'This playlist is empty on Spotify.', 'error');
+            return;
+          }
         } catch (e) {
-          s.notify((e as Error).message, 'error');
+          play('error');
+          s.notify(`Could not load this playlist from Spotify: ${(e as Error).message}`, 'error');
+          return;
         }
       }
     }
     play('open');
     go('confirm');
+    // look up this album's lyrics and official videos while the disc slides out
+    void prefetchSongs(rowsFor(front).map((r) => r.trackId));
   };
 
   const launch = (trackIds: string[], index: number) => {
@@ -166,7 +188,9 @@ export function App() {
         return;
       }
       if (performance.now() - started > 12000) {
-        controller.fail('This is taking longer than expected. The file may be large or the network slow.');
+        // a video that never started falls back to the song's audio; anything else gets the usual recovery
+        if (controller.active.kind === 'youtube') controller.fail('The video did not start.', { video: true });
+        else controller.fail('This is taking longer than expected. The file may be large or the network slow.');
         go('player');
         return;
       }
@@ -263,6 +287,7 @@ export function App() {
     const own = s.playlists.find((p) => p.id === it.id);
     const bgItems: MenuItem[] = [
       { separator: true, label: '' },
+      { label: 'Add your music…', run: () => setWelcome(true) },
       { label: 'Change background…', run: () => void chooseBackground() },
       ...(settings.background.kind === 'custom' ? [{ label: 'Use the city background', run: () => s.updateSettings((x) => (x.background.kind = 'city')) }] : []),
     ];
@@ -291,7 +316,7 @@ export function App() {
 
   // ----------------------------------------------------------- actions
   useActions((a) => {
-    if (menu || s.editing) return false;
+    if (menu || s.editing || welcome) return false;
     // global
     if (a === 'fullscreen') return void bridge.window.toggleFullscreen();
     if (a === 'playPause') return void controller.toggle();
@@ -322,8 +347,8 @@ export function App() {
 
     if (screen === 'library' || screen === 'confirm') {
       if (s.trackList.open) return false;
-      if (a === 'down') return step(1);
-      if (a === 'up') return step(-1);
+      if (a === 'up') return step(1); // up pulls the next sleeve forward from the stack
+      if (a === 'down') return step(-1); // down sends it back
       if (screen === 'library') {
         if (a === 'left') return switchShelf('albums');
         if (a === 'right') return switchShelf('playlists');
@@ -481,7 +506,7 @@ export function App() {
             <>
               <Status onSettings={() => { play('confirm'); useStore.setState({ screen: 'settings', returnTo: screen }); }} h24={settings.clock24} reduced={reduced} />
               {nowTrack && screen !== 'launch' && (
-                <button className={`now-mini ui-text${s.playing ? '' : ' paused'}`} onClick={() => go('player')} title="Now playing (Tab)">
+                <button className={`now-mini ui-text${s.playing ? '' : ' paused'}`} onClick={() => go('player')} title="Now playing (V)">
                   <span className="bars" aria-hidden><i /><i /><i /></span>
                   <b>{nowTrack.title}</b>
                   <span>— {nowTrack.artist}</span>
@@ -490,6 +515,16 @@ export function App() {
             </>
           )}
 
+          {welcome && !settingsOpen && (
+            <Welcome
+              onClose={closeWelcome}
+              onConnect={() => {
+                closeWelcome();
+                useStore.setState({ screen: 'settings', returnTo: 'library', settingsTab: 'connections' });
+              }}
+            />
+          )}
+          {(screen === 'library' || screen === 'confirm') && !welcome && <UpdateNotice />}
           {s.editing && <PlaylistEditor id={s.editing} onClose={() => useStore.setState({ editing: null })} />}
           {menu && <Menu items={menu.items} x={menu.x} y={menu.y} onClose={() => setMenu(null)} />}
           {s.toast && <div className={`toast ${s.toast.tone}`} role="status">{s.toast.text}</div>}

@@ -58,7 +58,11 @@ Every key can be remapped in Settings → Accessibility. Media keys work through
 
 ### Your music
 
-Settings → Connections → Local files: add folders or files (MP3, FLAC, WAV, AAC/M4A, OGG/Opus, MP4/WebM). Tags and embedded artwork are read; a `.lrc` with the same name becomes the track's timed lyrics, and a video with the same name becomes its music video. Files are never modified.
+On first launch Noctune adds your system Music folder automatically and shows what it found.
+
+Settings → Connections → Local files: add folders or files (MP3, FLAC, WAV, AAC/M4A, OGG/Opus, MP4/WebM). Tags and embedded artwork are read; a `.lrc` with the same name becomes the track's timed lyrics, and a video with the same name becomes its music video. Files are never modified. Untagged files named like `Artist - Title.mp3` are read from their names.
+
+For each song, Noctune finds timed lyrics on LRCLIB and the official music video through MusicBrainz, saves both, and plays the video in YouTube's player (YouTube picks the highest quality the window size and connection allow). If the video can't play, the song plays with the visualizer. Both lookups can be switched off in Settings.
 
 ### Services
 

@@ -1,16 +1,22 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-const invoke = (ch: string, ...args: unknown[]) => ipcRenderer.invoke(ch, ...args);
+// Errors from the main process arrive as "Error invoking remote method 'x': Error: reason"; keep only the reason.
+const invoke = (ch: string, ...args: unknown[]) =>
+  ipcRenderer.invoke(ch, ...args).catch((e: unknown) => {
+    throw new Error(String((e as Error)?.message ?? e).replace(/^Error invoking remote method '[^']+': (?:\w*Error: )?/, ''));
+  });
 
 contextBridge.exposeInMainWorld('noctune', {
   platform: process.platform,
-  version: process.env.NOCTUNE_VERSION ?? '0.1.0',
+  // passed by the main process, which knows the installed app's version
+  version: process.argv.find((a) => a.startsWith('--noctune-version='))?.split('=')[1] ?? '',
   library: {
     get: () => invoke('library:get'),
     addFolder: () => invoke('library:addFolder'),
     addFiles: () => invoke('library:addFiles'),
     removeFolder: (p: string) => invoke('library:removeFolder', p),
     rescan: () => invoke('library:rescan'),
+    autoDetect: () => invoke('library:autoDetect'),
     setOverride: (id: string, v: unknown) => invoke('library:setOverride', id, v),
     onProgress: (cb: (d: number, t: number) => void) => {
       const h = (_: unknown, d: number, t: number) => cb(d, t);
@@ -36,9 +42,9 @@ contextBridge.exposeInMainWorld('noctune', {
     library: (id: string) => invoke('providers:library', id),
     playlistTracks: (id: string) => invoke('providers:playlistTracks', id),
     remote: (cmd: unknown) => invoke('providers:remote', cmd),
-    spotifyToken: () => invoke('providers:spotifyToken'),
   },
   lyrics: { lookup: (q: unknown) => invoke('lyrics:lookup', q) },
+  video: { lookup: (q: unknown) => invoke('video:lookup', q) },
   window: {
     toggleFullscreen: () => invoke('window:toggleFullscreen'),
     isFullscreen: () => invoke('window:isFullscreen'),
@@ -50,4 +56,16 @@ contextBridge.exposeInMainWorld('noctune', {
   },
   openExternal: (url: string) => invoke('shell:openExternal', url),
   clearCache: () => invoke('app:clearCache'),
+  updates: {
+    state: () => invoke('update:state'),
+    check: () => invoke('update:check'),
+    download: () => invoke('update:download'),
+    install: () => invoke('update:install'),
+    onState: (cb: (s: unknown) => void) => {
+      const h = (_: unknown, s: unknown) => cb(s);
+      ipcRenderer.on('update:state', h);
+      return () => ipcRenderer.removeListener('update:state', h);
+    },
+  },
+  deleteAllData: () => invoke('app:deleteAllData'),
 });

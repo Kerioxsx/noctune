@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useStore, currentTrack } from '../store';
-import { controller } from '../engine/playback';
+import { controller, onlineLyrics } from '../engine/playback';
 import { audio } from '../engine/audio';
 import { bridge } from '../lib/bridge';
 import { parseLrc, activeLine, type Lyrics } from '../lib/lrc';
@@ -61,8 +61,8 @@ export function useLyrics(track: LibraryTrack | undefined): { lyrics: Lyrics | n
       }
       if (track.embeddedLyrics) return parseLrc(track.embeddedLyrics, 'Embedded in file');
       if (community) {
-        const txt = await bridge.lyrics.lookup({ title: track.title, artist: track.artist, album: track.album, duration: track.duration });
-        if (txt) return parseLrc(txt, 'LRCLIB (community)');
+        const txt = await onlineLyrics(track);
+        if (txt) return parseLrc(txt, 'LRCLIB');
       }
       return null;
     })().then((lyrics) => {

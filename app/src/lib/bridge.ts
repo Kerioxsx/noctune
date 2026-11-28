@@ -53,13 +53,14 @@ function browserBridge(): BridgeAPI {
   }));
   return {
     platform: 'web',
-    version: '0.1.0',
+    version: '0.2.0',
     library: {
       get: async () => emptyIndex,
       addFolder: desktopOnly,
       addFiles: desktopOnly,
       removeFolder: desktopOnly,
       rescan: desktopOnly,
+      autoDetect: async () => null,
       setOverride: async () => undefined,
       onProgress: () => () => undefined,
     },
@@ -101,9 +102,9 @@ function browserBridge(): BridgeAPI {
       library: async () => ({ tracks: [], albums: [], playlists: [] }),
       playlistTracks: async () => [],
       remote: desktopOnly,
-      spotifyToken: desktopOnly,
     },
     lyrics: { lookup: async () => null },
+    video: { lookup: async () => null },
     window: {
       toggleFullscreen: async () => {
         if (document.fullscreenElement) await document.exitFullscreen();
@@ -121,6 +122,21 @@ function browserBridge(): BridgeAPI {
       window.open(url, '_blank', 'noopener');
     },
     clearCache: async () => undefined,
+    updates: {
+      state: async () => ({ status: 'idle' as const }),
+      check: async () => ({ status: 'none' as const }),
+      download: async () => undefined,
+      install: async () => undefined,
+      onState: () => () => undefined,
+    },
+    deleteAllData: async () => {
+      try {
+        Object.keys(localStorage).filter((k) => k.startsWith('noctune:')).forEach((k) => localStorage.removeItem(k));
+      } catch {
+        /* storage unavailable */
+      }
+      location.reload();
+    },
   };
 }
 

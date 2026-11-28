@@ -6,6 +6,7 @@ import { audio, EQ_BANDS, EQ_PRESETS } from '../engine/audio';
 import { bridge, isDesktop } from '../lib/bridge';
 import type { ProviderStatus, ScanReport } from '../lib/types';
 import { chooseBackground } from '../lib/background';
+import { useUpdateState, updateCopy } from './UpdateNotice';
 
 const TAB_LABEL: Record<SettingsTab, string> = { equalizer: 'Equalizer', settings: 'Settings', accessibility: 'Accessibility', connections: 'Connections', account: 'Account' };
 
@@ -160,7 +161,7 @@ function GeneralTab() {
       </Group>
       <Group title="Library">
         <Choice label="Sort albums" value={s.sort} options={[{ v: 'library', l: 'Library order' }, { v: 'title', l: 'Title' }, { v: 'artist', l: 'Artist' }, { v: 'year', l: 'Year' }, { v: 'source', l: 'Source' }]} onChange={(v) => update((x) => (x.sort = v))} />
-        <Toggle label="Show demo albums" checked={s.showDemo} onChange={(v) => update((x) => (x.showDemo = v))} />
+        <Choice label="Demo albums" value={s.demos} options={[{ v: 'auto', l: 'Until my music is added' }, { v: 'show', l: 'Always show' }, { v: 'hide', l: 'Hide' }]} onChange={(v) => update((x) => (x.demos = v))} />
         <div className="row">
           <div className="row-l">
             <span>Music folders</span>
@@ -184,7 +185,8 @@ function GeneralTab() {
         <Choice label="Repeat" value={s.repeat} options={[{ v: 'off', l: 'Off' }, { v: 'all', l: 'All' }, { v: 'one', l: 'One' }]} onChange={(v) => { update((x) => (x.repeat = v)); useStore.setState({ repeat: v }); }} />
         <Toggle label="Remember repeat mode" hint="Off: repeat resets each session." checked={s.repeatPersist} onChange={(v) => update((x) => (x.repeatPersist = v))} />
         <Toggle label="Resume last session" hint="Reopens the last queue, paused where you left it." checked={s.resumeSession} onChange={(v) => update((x) => (x.resumeSession = v))} />
-        <Toggle label="Community lyrics" hint="Looks up timed lyrics on LRCLIB (lrclib.net) when a track has none. Sends the track title and artist to LRCLIB." checked={s.lyrics.community} onChange={(v) => update((x) => (x.lyrics.community = v))} />
+        <Toggle label="Find lyrics online" hint="Looks up timed lyrics on LRCLIB (lrclib.net) for songs that have none, and saves them so they work offline. Sends the song's title, artist, album and length to LRCLIB." checked={s.lyrics.community} onChange={(v) => update((x) => (x.lyrics.community = v))} />
+        <Toggle label="Play official music videos" hint="Finds each song's official video through MusicBrainz (musicbrainz.org) and plays it in YouTube's player at the best quality your screen and connection allow. Sends the song's title and artist to MusicBrainz; the video comes from YouTube." checked={s.autoVideo} onChange={(v) => update((x) => (x.autoVideo = v))} />
       </Group>
       <Group title="Privacy & data">
         <div className="row"><div className="row-l"><span>Diagnostics</span><small>Noctune sends no analytics or crash reports.</small></div></div>
@@ -194,12 +196,25 @@ function GeneralTab() {
         </div>
       </Group>
       <Group title="About">
-        <div className="row"><div className="row-l"><span>Noctune {bridge.version}</span><small>{isDesktop ? `Desktop · ${bridge.platform}` : 'Web preview · library and providers need the desktop app'}</small></div>
-          <button className="btn" onClick={() => void bridge.openExternal('https://github.com/kerioxsx/noctune/releases')}>Check for updates</button>
-        </div>
+        <AboutRow />
         <div className="row"><div className="row-l"><span>Troubleshooting</span><small>No sound: check the system output device and that the volume slider is above 0. Video will not play: the format may be unsupported on this OS; MP4 (H.264/AAC) works everywhere.</small></div></div>
       </Group>
     </>
+  );
+}
+
+function AboutRow() {
+  const u = useUpdateState();
+  const { text, action } = updateCopy(u);
+  const busy = u.status === 'checking' || u.status === 'downloading';
+  return (
+    <div className="row">
+      <div className="row-l">
+        <span>Noctune {bridge.version}</span>
+        <small>{isDesktop ? text || `Desktop · ${bridge.platform}. Updates download and install inside the app.` : 'Web preview · library and providers need the desktop app'}</small>
+      </div>
+      {isDesktop && (action ? <button className="btn primary" onClick={action.run}>{action.label}</button> : <button className="btn" disabled={busy} onClick={() => void bridge.updates.check()}>{busy ? 'Working…' : 'Check for updates'}</button>)}
+    </div>
   );
 }
 
@@ -453,12 +468,22 @@ function AccountTab() {
           }}>Export…</button>
         </div>
         <div className="row">
-          <div className="row-l"><span>Reset</span><small>Clears playlists, profile and settings on this computer. Music files are untouched.</small></div>
-          <button className="btn danger" onClick={async () => {
-            if (!confirm('Reset Noctune on this computer? Playlists and settings will be deleted.')) return;
-            await Promise.all([bridge.store.set('playlists', []), bridge.store.set('settings', DEFAULT_SETTINGS), bridge.store.set('profile', { name: 'Player 1', account: null }), bridge.store.set('session', null)]);
-            location.reload();
-          }}>Reset…</button>
+          <div className="row-l"><span>Reset settings</span><small>Puts settings back to how they were at install. Playlists, library and connections stay.</small></div>
+          <button className="btn" onClick={() => {
+            if (!confirm('Reset all settings to their defaults?')) return;
+            void bridge.store.set('settings', DEFAULT_SETTINGS).then(() => location.reload());
+          }}>Reset settings…</button>
+        </div>
+        <div className="row">
+          <div className="row-l"><span>Delete all my data</span><small>Erases everything Noctune stored on this computer: playlists, profile, settings, library list, cached artwork, imported lyrics and service sign-ins, then restarts. Your music files are never touched.</small></div>
+          <button className="btn danger" onClick={() => {
+            if (!confirm('Delete everything Noctune stored on this computer? This cannot be undone. Your music files stay where they are.')) return;
+            void bridge.deleteAllData();
+          }}>Delete all my data…</button>
+        </div>
+        <div className="row">
+          <div className="row-l"><span>Privacy</span><small>What Noctune stores, what it sends and to whom.</small></div>
+          <button className="btn" onClick={() => void bridge.openExternal('https://kerioxsx.github.io/noctune/privacy.html')}>Read the privacy notice</button>
         </div>
       </Group>
     </>
