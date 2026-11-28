@@ -1,0 +1,7 @@
+/* Kept apart from app.css: this gradient is the sung-position indicator, not decoration. */
+/* karaoke fill: each word lights up from left to right as it is sung */
+.ly.current .w {
+  background: linear-gradient(90deg, var(--amber) 0 calc(var(--p, 0) * 100%), rgba(236, 230, 207, 0.42) calc(var(--p, 0) * 100%) 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  text-shadow: none; filter: drop-shadow(0 2px 14px rgba(0, 0, 0, 0.6));
+}

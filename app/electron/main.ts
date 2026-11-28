@@ -5,7 +5,7 @@ import { registerSchemes, handleProtocol, allowRoot, allowPath, mediaUrl } from 
 import { readJson, writeJson, dataDir } from './store';
 import * as library from './library';
 import * as providers from './providers';
-import { findLyrics, findOfficialVideo, type SongQuery } from './lookups';
+import { findLyrics, findLyricsForLength, findOfficialVideo, type SongQuery } from './lookups';
 import * as youtube from './youtube';
 import * as discover from './discover';
 import { initUpdater, checkForUpdates, downloadUpdate, installUpdate, getUpdateState } from './updater';
@@ -208,6 +208,11 @@ function registerIpc() {
   ipcMain.handle('lyrics:lookup', async (_e, q: unknown) => {
     const sq = songQuery(q);
     return sq ? findLyrics(sq) : null;
+  });
+  ipcMain.handle('lyrics:forLength', async (_e, q: unknown, len: unknown) => {
+    const sq = songQuery(q);
+    const n = Number(len);
+    return sq && n > 10 && n < 3600 ? findLyricsForLength(sq, n) : null;
   });
   // Discovery: only artist names leave the computer (to Deezer's public catalogue).
   const names = (v: unknown, max: number) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.length > 0 && x.length < 300).slice(0, max) : []);

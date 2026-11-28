@@ -146,7 +146,23 @@ type Renderer = {
 
 const words = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 const secs = (t?: string) => (t ? t.split(':').reduce((a, x) => a * 60 + (parseInt(x, 10) || 0), 0) : 0);
-const UNWANTED = /\b(lyrics?|lyric video|audio|visuali[sz]er|live|cover|karaoke|instrumental|reaction|8d|slowed|sped up|nightcore|remix|fan ?made|tutorial|teaser|trailer|behind the scenes|making of|performance)\b/;
+const UNWANTED = /\b(lyrics?|lyric video|letra|audio|official audio|visuali[sz]er|static|art track|live|cover|karaoke|instrumental|reaction|8d|slowed|sped up|nightcore|remix|fan ?made|tutorial|teaser|trailer|behind the scenes|making of|performance|full album|loop|extended|1 hour)\b/;
+/** Words that say "this is the music video", not just the song with a picture. */
+const IS_VIDEO = /official (4k |hd )?(music )?video|music video|\bvideo$|\bvideo (4k|hd|remastered)\b|\bm ?v\b|video oficial|videoclip|clip officiel|official clip|musikvideo/;
+
+/**
+ * True when a YouTube title and channel describe a real music video. VEVO channels only
+ * carry music videos; anything else must say so in the title.
+ */
+export function looksLikeMusicVideo(title: string, channel: string, songTitle: string, byArtist = false) {
+  const vt = words(title);
+  const owner = words(channel);
+  if (owner.endsWith(' topic')) return false; // "Artist - Topic": the album track with its cover
+  const tail = vt.replace(words(songTitle), '');
+  if (!UNWANTED.test(words(songTitle)) && UNWANTED.test(tail)) return false;
+  // the artist's own channel posts the video as plain "Artist - Song" and labels the rest (Audio, Lyrics, Visualizer)
+  return IS_VIDEO.test(vt) || /vevo$/.test(owner) || byArtist;
+}
 
 /**
  * The song's official music video on YouTube, by searching the way YouTube's own
@@ -183,16 +199,26 @@ export async function searchOfficialVideo(q: VideoQuery): Promise<string | null>
     const vt = words(r.title?.runs?.map((x) => x.text).join('') ?? '');
     const owner = words(r.ownerText?.runs?.[0]?.text ?? '');
     const verified = (r.ownerBadges ?? []).some((b) => b.metadataBadgeRenderer?.style === 'BADGE_STYLE_TYPE_VERIFIED_ARTIST');
-    const byArtist = verified || owner === artist || owner.replace(/ ?vevo$/, '') === artist.replace(/ /g, '') || owner.replace(/ ?vevo$/, '') === artist || owner === `${artist} topic`;
+    const byArtist = verified || owner === artist || owner.replace(/ ?vevo$/, '') === artist.replace(/ /g, '') || owner.replace(/ ?vevo$/, '') === artist;
     if (!byArtist || !vt.includes(title)) return;
     if (!songUnwanted && UNWANTED.test(vt.replace(title, ''))) return;
+    // only real music videos: not "Official Audio", lyric videos, visualizers or the cover picture
+    if (!looksLikeMusicVideo(r.title?.runs?.map((x) => x.text).join('') ?? '', r.ownerText?.runs?.[0]?.text ?? '', q.title, verified || owner === artist)) return;
     const len = secs(r.lengthText?.simpleText);
     if (q.duration && len && (len < q.duration - 25 || len > q.duration + 300)) return;
     let score = 10 - i; // YouTube's own ranking
     if (/official (music )?video|music video|\bmv\b/.test(vt)) score += 20;
     if (/official/.test(vt)) score += 5;
-    if (owner.endsWith(' topic')) score -= 15; // an album track still image, not a video
     if (!best || score > best.score) best = { id: r.videoId, score };
   });
   return (best as { id: string } | null)?.id ?? null;
+}
+
+/** Title and channel of a YouTube video (YouTube's public oEmbed), to check links from other sources. */
+export async function videoInfo(id: string): Promise<{ title: string; channel: string } | null> {
+  if (!/^[\w-]{11}$/.test(id)) return null;
+  const res = await fetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(`https://www.youtube.com/watch?v=${id}`)}`);
+  if (!res.ok) return null;
+  const j = (await res.json()) as { title?: string; author_name?: string };
+  return { title: j.title ?? '', channel: j.author_name ?? '' };
 }

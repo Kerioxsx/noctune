@@ -150,7 +150,7 @@ export interface BridgeAPI {
     playlistTracks(id: string): Promise<LibraryTrack[]>;
     remote(cmd: unknown): Promise<RemoteState | null>;
   };
-  lyrics: { lookup(q: { title: string; artist: string; album?: string; duration?: number }): Promise<string | null> };
+  lyrics: { lookup(q: { title: string; artist: string; album?: string; duration?: number }): Promise<string | null>; forLength(q: { title: string; artist: string; album?: string; duration?: number }, length: number): Promise<string | null> };
   /** official music video on YouTube, found through MusicBrainz; returns the video id */
   discover: {
     similar(seeds: string[], known: string[], limit?: number): Promise<FoundSong[]>;

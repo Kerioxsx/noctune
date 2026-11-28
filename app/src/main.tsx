@@ -10,6 +10,7 @@ import { controller } from './engine/playback';
 import { audio } from './engine/audio';
 import './styles/app.css';
 import './styles/settings.css';
+import './styles/karaoke.css';
 
 installKeyboard();
 installGamepad();

@@ -1,5 +1,5 @@
 import { readJson, writeJson } from './store';
-import { searchOfficialVideo } from './youtube';
+import { searchOfficialVideo, videoInfo, looksLikeMusicVideo } from './youtube';
 
 /**
  * Online lookups for songs: timed lyrics from LRCLIB and official music videos
@@ -21,7 +21,7 @@ export interface SongQuery {
 
 type Cache<T> = Record<string, { v: T | null; at: number }>;
 // v2: queries are cleaned first (main artist, no "Remastered"/"feat." tails), so earlier misses are retried
-const key = (q: SongQuery) => `v3::${q.artist.toLowerCase().trim()}::${q.title.toLowerCase().trim()}`;
+const key = (q: SongQuery) => `v4::${q.artist.toLowerCase().trim()}::${q.title.toLowerCase().trim()}`;
 
 /** First credited artist: "A, B", "A & B", "A feat. B", "A x B" all become "A". */
 export function mainArtist(artist: string) {
@@ -148,9 +148,29 @@ export function findOfficialVideo(raw: SongQuery): Promise<string | null> {
       const rec = await mb<{ relations?: { type: string; url?: { resource: string } }[] }>(`recording/${r.id}?inc=url-rels&fmt=json`);
       for (const rel of rec?.relations ?? []) {
         const id = rel.url && youtubeId(rel.url.resource);
-        if (id) return id;
+        if (!id) continue;
+        // MusicBrainz sometimes links the audio upload: keep it only if YouTube calls it a video
+        const info = await videoInfo(id).catch(() => null);
+        if (info && looksLikeMusicVideo(info.title, info.channel, q.title)) return id;
       }
     }
     return null;
   }));
+}
+
+/**
+ * Timed lyrics made for a specific length: music videos often run longer than the
+ * song (an intro, a skit), and some people sync lyrics to the video itself.
+ */
+export function findLyricsForLength(raw: SongQuery, length: number): Promise<string | null> {
+  const q = { ...raw, title: cleanTitle(raw.title), artist: mainArtist(raw.artist) };
+  return cached<string>('lyrics-cache', { ...q, title: `${q.title}#len${Math.round(length)}` }, async () => {
+    const s = new URL('https://lrclib.net/api/search');
+    s.searchParams.set('track_name', q.title);
+    s.searchParams.set('artist_name', q.artist);
+    const list = (await getJson<LrcLib[]>(s.toString())) ?? [];
+    const t = words(q.title);
+    const hit = list.find((x) => x.syncedLyrics && words(x.trackName).includes(t) && Math.abs((x.duration ?? 0) - length) <= 2.5);
+    return hit?.syncedLyrics ?? null;
+  });
 }

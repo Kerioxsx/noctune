@@ -103,7 +103,7 @@ function browserBridge(): BridgeAPI {
       playlistTracks: async () => [],
       remote: desktopOnly,
     },
-    lyrics: { lookup: async () => null },
+    lyrics: { lookup: async () => null, forLength: async () => null },
     discover: { similar: async () => [], releases: async () => [], releaseSongs: async () => [] },
     youtube: { status: async () => false, signIn: async () => false, signOut: async () => undefined },
     video: { lookup: async () => null },

@@ -53,7 +53,7 @@ contextBridge.exposeInMainWorld('noctune', {
     playlistTracks: (id: string) => invoke('providers:playlistTracks', id),
     remote: (cmd: unknown) => invoke('providers:remote', cmd),
   },
-  lyrics: { lookup: (q: unknown) => invoke('lyrics:lookup', q) },
+  lyrics: { lookup: (q: unknown) => invoke('lyrics:lookup', q), forLength: (q: unknown, len: number) => invoke('lyrics:forLength', q, len) },
   video: { lookup: (q: unknown) => invoke('video:lookup', q) },
   window: {
     toggleFullscreen: () => invoke('window:toggleFullscreen'),
