@@ -19,7 +19,9 @@ interface LibraryConfig {
 }
 
 export async function getConfig(): Promise<LibraryConfig> {
-  return readJson<LibraryConfig>('library-config', { folders: [], files: [], overrides: {} });
+  const c = await readJson<Partial<LibraryConfig>>('library-config', {});
+  const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+  return { folders: strings(c.folders), files: strings(c.files), overrides: c.overrides && typeof c.overrides === 'object' ? c.overrides : {} };
 }
 export async function saveConfig(c: LibraryConfig) {
   await writeJson('library-config', c);
@@ -165,6 +167,6 @@ function groupAlbums(tracks: LibraryTrack[]): LibraryAlbum[] {
 
 export async function loadIndex(): Promise<LibraryIndex> {
   const cfg = await getConfig();
-  const idx = await readJson<LibraryIndex>('library-index', { tracks: [], albums: [], scannedAt: 0, folders: [], files: [] });
-  return { ...idx, folders: cfg.folders, files: cfg.files };
+  const idx = await readJson<Partial<LibraryIndex>>('library-index', {});
+  return { tracks: Array.isArray(idx.tracks) ? idx.tracks : [], albums: Array.isArray(idx.albums) ? idx.albums : [], scannedAt: typeof idx.scannedAt === 'number' ? idx.scannedAt : 0, folders: cfg.folders, files: cfg.files };
 }

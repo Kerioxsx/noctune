@@ -52,6 +52,8 @@ export interface BackgroundSettings {
 }
 
 export interface Settings {
+  /** the first-run welcome has been seen */
+  onboarded: boolean;
   background: BackgroundSettings;
   effects: { enabled: boolean; intensity: number; vhs: boolean; scanlineStrength: number; halftone: boolean; scanlines: boolean; noise: boolean; glitches: boolean; chroma: boolean; vignette: boolean };
   sound: { enabled: boolean; volume: number; quietDuringPlayback: boolean };
@@ -76,6 +78,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
+  onboarded: false,
   background: { kind: 'city', fit: 'cover', print: false, dim: 0.15 },
   effects: { enabled: true, intensity: 0.6, vhs: true, scanlineStrength: 0.6, halftone: true, scanlines: true, noise: true, glitches: true, chroma: true, vignette: true },
   sound: { enabled: true, volume: 0.6, quietDuringPlayback: true },
@@ -273,7 +276,7 @@ async function loadDemo(): Promise<{ tracks: LibraryTrack[]; albums: LibraryAlbu
 }
 
 export async function boot() {
-  const [settings, profile, playlists, index, demo, providers] = await Promise.all([
+  const [settingsRaw, profileRaw, playlistsRaw, index, demo, providers] = await Promise.all([
     bridge.store.get<Settings>('settings', DEFAULT_SETTINGS),
     bridge.store.get<Profile>('profile', { name: 'Player 1', account: null }),
     bridge.store.get<Playlist[]>('playlists', []),
@@ -281,7 +284,17 @@ export async function boot() {
     loadDemo().catch(() => ({ tracks: [], albums: [] })),
     bridge.providers.status().catch(() => [] as ProviderStatus[]),
   ]);
+  // Stored values are untrusted: keep only the right shapes so a damaged file never breaks start-up.
+  const obj = <T,>(v: unknown, d: T): T => (v && typeof v === 'object' && !Array.isArray(v) ? (v as T) : d);
+  const settings = obj<Partial<Settings>>(settingsRaw, {}) as Settings;
+  const profileObj = obj<Partial<Profile>>(profileRaw, {});
+  const profile: Profile = { name: typeof profileObj.name === 'string' && profileObj.name ? profileObj.name : 'Player 1', avatar: typeof profileObj.avatar === 'string' ? profileObj.avatar : undefined, account: null };
+  const playlists = (Array.isArray(playlistsRaw) ? playlistsRaw : []).filter((p): p is Playlist => !!p && typeof p === 'object' && typeof (p as Playlist).id === 'string' && Array.isArray((p as Playlist).entries)).map((p) => ({ ...p, title: typeof p.title === 'string' ? p.title : 'Untitled playlist', description: typeof p.description === 'string' ? p.description : '', cover: p.cover && typeof p.cover === 'object' ? p.cover : { kind: 'auto' as const } }));
   const merged: Settings = { ...DEFAULT_SETTINGS, ...settings, background: { ...DEFAULT_SETTINGS.background, ...settings.background }, effects: { ...DEFAULT_SETTINGS.effects, ...settings.effects }, sound: { ...DEFAULT_SETTINGS.sound, ...settings.sound }, lyrics: { ...DEFAULT_SETTINGS.lyrics, ...settings.lyrics }, eq: { ...DEFAULT_SETTINGS.eq, ...settings.eq }, keymap: { ...DEFAULT_KEYMAP, ...settings.keymap } };
+  if (!Array.isArray(merged.eq.gains) || merged.eq.gains.length !== DEFAULT_SETTINGS.eq.gains.length || merged.eq.gains.some((g) => typeof g !== 'number')) merged.eq = { ...DEFAULT_SETTINGS.eq };
+  for (const k of Object.keys(DEFAULT_KEYMAP) as Action[]) if (!Array.isArray(merged.keymap[k])) merged.keymap[k] = DEFAULT_KEYMAP[k];
+  if (!merged.videoLinks || typeof merged.videoLinks !== 'object') merged.videoLinks = {};
+  if (!merged.lyrics.offsets || typeof merged.lyrics.offsets !== 'object') merged.lyrics.offsets = {};
   const tracks: Record<string, LibraryTrack> = {};
   for (const t of [...demo.tracks, ...index.tracks]) tracks[t.id] = applyLinks(t, merged);
   // Real libraries come first; the demo shelf sits after them.

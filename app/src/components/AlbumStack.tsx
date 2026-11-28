@@ -66,7 +66,7 @@ export const AlbumStack = memo(function AlbumStack({ items, sel, phase, hideCard
         const now = performance.now();
         if (now - wheelAt.current < 140 || Math.abs(e.deltaY) < 8) return;
         wheelAt.current = now;
-        onStep(e.deltaY > 0 ? 1 : -1);
+        onStep(e.deltaY < 0 ? 1 : -1);
       }}
       onPointerDown={(e) => (drag.current = { y: e.clientY, t: performance.now() })}
       onPointerUp={(e) => {
@@ -74,7 +74,7 @@ export const AlbumStack = memo(function AlbumStack({ items, sel, phase, hideCard
         drag.current = null;
         if (!st) return;
         const dy = e.clientY - st.y;
-        if (Math.abs(dy) > 36) onStep(dy > 0 ? 1 : -1);
+        if (Math.abs(dy) > 36) onStep(dy < 0 ? 1 : -1);
       }}
     >
       {items.map((it, i) => {

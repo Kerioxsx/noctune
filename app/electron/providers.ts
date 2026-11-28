@@ -324,6 +324,7 @@ export async function connect(id: ProviderId) {
 export async function disconnect(id: ProviderId) {
   await setSecret(`${id}.tokens`, null);
   if (id === 'apple') await setSecret('apple.developerToken', null);
+  if (id === 'soundcloud') await setSecret('soundcloud.clientSecret', null);
 }
 
 export async function library(id: ProviderId): Promise<ProviderLibrary> {

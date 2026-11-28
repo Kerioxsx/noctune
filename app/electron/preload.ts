@@ -49,4 +49,5 @@ contextBridge.exposeInMainWorld('noctune', {
   },
   openExternal: (url: string) => invoke('shell:openExternal', url),
   clearCache: () => invoke('app:clearCache'),
+  deleteAllData: () => invoke('app:deleteAllData'),
 });

@@ -7,7 +7,9 @@ export const dataDir = () => app.getPath('userData');
 
 export async function readJson<T>(name: string, fallback: T): Promise<T> {
   try {
-    return JSON.parse(await fs.readFile(join(dataDir(), `${name}.json`), 'utf8')) as T;
+    const v = JSON.parse(await fs.readFile(join(dataDir(), `${name}.json`), 'utf8'));
+    // a file that holds the wrong kind of value (null, a number...) is treated as missing
+    return (v === null || typeof v !== typeof fallback ? fallback : v) as T;
   } catch {
     return fallback;
   }

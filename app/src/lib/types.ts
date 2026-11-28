@@ -143,4 +143,6 @@ export interface BridgeAPI {
   window: { toggleFullscreen(): Promise<boolean>; isFullscreen(): Promise<boolean>; onFullscreen(cb: (v: boolean) => void): () => void };
   openExternal(url: string): Promise<void>;
   clearCache(): Promise<void>;
+  /** erase every file Noctune stored and restart */
+  deleteAllData(): Promise<void>;
 }

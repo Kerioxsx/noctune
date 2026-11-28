@@ -453,12 +453,22 @@ function AccountTab() {
           }}>Export…</button>
         </div>
         <div className="row">
-          <div className="row-l"><span>Reset</span><small>Clears playlists, profile and settings on this computer. Music files are untouched.</small></div>
-          <button className="btn danger" onClick={async () => {
-            if (!confirm('Reset Noctune on this computer? Playlists and settings will be deleted.')) return;
-            await Promise.all([bridge.store.set('playlists', []), bridge.store.set('settings', DEFAULT_SETTINGS), bridge.store.set('profile', { name: 'Player 1', account: null }), bridge.store.set('session', null)]);
-            location.reload();
-          }}>Reset…</button>
+          <div className="row-l"><span>Reset settings</span><small>Puts settings back to how they were at install. Playlists, library and connections stay.</small></div>
+          <button className="btn" onClick={() => {
+            if (!confirm('Reset all settings to their defaults?')) return;
+            void bridge.store.set('settings', DEFAULT_SETTINGS).then(() => location.reload());
+          }}>Reset settings…</button>
+        </div>
+        <div className="row">
+          <div className="row-l"><span>Delete all my data</span><small>Erases everything Noctune stored on this computer: playlists, profile, settings, library list, cached artwork, imported lyrics and service sign-ins, then restarts. Your music files are never touched.</small></div>
+          <button className="btn danger" onClick={() => {
+            if (!confirm('Delete everything Noctune stored on this computer? This cannot be undone. Your music files stay where they are.')) return;
+            void bridge.deleteAllData();
+          }}>Delete all my data…</button>
+        </div>
+        <div className="row">
+          <div className="row-l"><span>Privacy</span><small>What Noctune stores, what it sends and to whom.</small></div>
+          <button className="btn" onClick={() => void bridge.openExternal('https://kerioxsx.github.io/noctune/privacy.html')}>Read the privacy notice</button>
         </div>
       </Group>
     </>

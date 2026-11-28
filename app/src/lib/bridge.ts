@@ -120,6 +120,14 @@ function browserBridge(): BridgeAPI {
       window.open(url, '_blank', 'noopener');
     },
     clearCache: async () => undefined,
+    deleteAllData: async () => {
+      try {
+        Object.keys(localStorage).filter((k) => k.startsWith('noctune:')).forEach((k) => localStorage.removeItem(k));
+      } catch {
+        /* storage unavailable */
+      }
+      location.reload();
+    },
   };
 }
 

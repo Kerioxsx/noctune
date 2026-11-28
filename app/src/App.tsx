@@ -15,6 +15,8 @@ import { Player } from './components/Player';
 import { TrackList, Menu, type MenuItem, type Row } from './components/TrackList';
 import { SettingsHub } from './components/Settings';
 import { PlaylistEditor } from './components/PlaylistEditor';
+import { Welcome } from './components/Welcome';
+import { isDesktop } from './lib/bridge';
 import { Cross, Circle, Triangle, Square } from './components/Icons';
 
 const STAGE_W = 1280;
@@ -44,6 +46,15 @@ export function App() {
   const [glitch, setGlitch] = useState(false);
   const [menu, setMenu] = useState<{ items: MenuItem[]; x: number; y: number } | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [welcome, setWelcome] = useState(false);
+  // first launch of the desktop app: explain how to get your own music in
+  useEffect(() => {
+    if (s.ready && isDesktop && !s.settings.onboarded) setWelcome(true);
+  }, [s.ready]);
+  const closeWelcome = () => {
+    setWelcome(false);
+    if (!useStore.getState().settings.onboarded) s.updateSettings((x) => (x.onboarded = true));
+  };
   const [tones, setTones] = useState<Tones>({ status: 'dark', hud: 'dark', prompt: 'dark', mini: 'dark' });
   const launchTimer = useRef<number[]>([]);
 
@@ -263,6 +274,7 @@ export function App() {
     const own = s.playlists.find((p) => p.id === it.id);
     const bgItems: MenuItem[] = [
       { separator: true, label: '' },
+      { label: 'Add your music…', run: () => setWelcome(true) },
       { label: 'Change background…', run: () => void chooseBackground() },
       ...(settings.background.kind === 'custom' ? [{ label: 'Use the city background', run: () => s.updateSettings((x) => (x.background.kind = 'city')) }] : []),
     ];
@@ -291,7 +303,7 @@ export function App() {
 
   // ----------------------------------------------------------- actions
   useActions((a) => {
-    if (menu || s.editing) return false;
+    if (menu || s.editing || welcome) return false;
     // global
     if (a === 'fullscreen') return void bridge.window.toggleFullscreen();
     if (a === 'playPause') return void controller.toggle();
@@ -322,8 +334,8 @@ export function App() {
 
     if (screen === 'library' || screen === 'confirm') {
       if (s.trackList.open) return false;
-      if (a === 'down') return step(1);
-      if (a === 'up') return step(-1);
+      if (a === 'up') return step(1); // up pulls the next sleeve forward from the stack
+      if (a === 'down') return step(-1); // down sends it back
       if (screen === 'library') {
         if (a === 'left') return switchShelf('albums');
         if (a === 'right') return switchShelf('playlists');
@@ -490,6 +502,15 @@ export function App() {
             </>
           )}
 
+          {welcome && !settingsOpen && (
+            <Welcome
+              onClose={closeWelcome}
+              onConnect={() => {
+                closeWelcome();
+                useStore.setState({ screen: 'settings', returnTo: 'library', settingsTab: 'connections' });
+              }}
+            />
+          )}
           {s.editing && <PlaylistEditor id={s.editing} onClose={() => useStore.setState({ editing: null })} />}
           {menu && <Menu items={menu.items} x={menu.x} y={menu.y} onClose={() => setMenu(null)} />}
           {s.toast && <div className={`toast ${s.toast.tone}`} role="status">{s.toast.text}</div>}

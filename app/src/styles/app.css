@@ -307,3 +307,18 @@ input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 11p
 
 .player-notice { position: absolute; left: 50%; top: 46px; transform: translateX(-50%); max-width: 720px; padding: 7px 12px; border: 1.5px solid var(--line-soft); border-radius: 6px; background: rgba(5, 6, 4, 0.78); font: 11.5px/1.5 var(--mono); color: var(--cream); text-align: center; }
 .player-notice button { margin-left: 10px; text-decoration: underline; text-underline-offset: 3px; }
+
+/* ------------------------------------------------------- first-run welcome */
+.welcome-scrim { z-index: 46; background: rgba(4, 5, 3, 0.62); }
+.welcome {
+  position: absolute; z-index: 47; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 640px; padding: 30px 34px 26px;
+  border: 1.5px solid var(--line); border-radius: 12px; background: rgba(8, 10, 7, 0.96); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  animation: panelIn calc(240ms * var(--anim)) var(--ease-out);
+}
+.welcome h2 { margin: 0 0 10px; font: 400 44px/1 var(--serif); color: var(--cream); }
+.welcome p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--cream); max-width: 60ch; }
+.welcome-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 22px 0 14px; }
+.welcome-actions .btn { padding: 9px 14px; font-size: 12.5px; }
+.welcome-skip { font-size: 12px; color: var(--cream-dim); text-decoration: underline; text-underline-offset: 3px; }
+.welcome-skip:hover { color: var(--cream); }
+.welcome .welcome-note { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line-soft); font-size: 11px; color: var(--cream-dim); }

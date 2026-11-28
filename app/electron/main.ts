@@ -21,7 +21,10 @@ interface WindowState {
 }
 
 async function createWindow() {
-  const saved = await readJson<WindowState>('window', { width: 1280, height: 720 });
+  // Saved state is untrusted input: a half-written or edited file must never stop the app opening.
+  const raw = await readJson<Partial<WindowState>>('window', {});
+  const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
+  const saved: WindowState = { width: num(raw.width, 1280), height: num(raw.height, 720), x: typeof raw.x === 'number' && Number.isFinite(raw.x) ? raw.x : undefined, y: typeof raw.y === 'number' && Number.isFinite(raw.y) ? raw.y : undefined, maximized: raw.maximized === true, fullscreen: raw.fullscreen === true };
   // Only restore a position that is still on a connected display.
   const visible =
     saved.x !== undefined &&
@@ -216,6 +219,18 @@ function registerIpc() {
   });
   ipcMain.handle('app:clearCache', async () => {
     await session.defaultSession.clearCache();
+  });
+  // Erases everything Noctune stored on this computer, then restarts. Music files are never touched.
+  ipcMain.handle('app:deleteAllData', async () => {
+    const dir = dataDir();
+    const names = ['settings', 'playlists', 'session', 'lyrics-imports', 'profile', 'library-config', 'library-index', 'providers', 'secrets', 'window'];
+    await Promise.all(names.map((n) => fs.rm(join(dir, `${n}.json`), { force: true })));
+    await fs.rm(join(dir, 'artwork'), { recursive: true, force: true });
+    await fs.rm(join(dir, 'covers'), { recursive: true, force: true });
+    await session.defaultSession.clearStorageData();
+    await session.defaultSession.clearCache();
+    app.relaunch();
+    app.exit(0);
   });
 }
 
